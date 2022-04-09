@@ -14,3 +14,14 @@ export const VocalSpan = styled.span`
         font-size: calc(${props.voice.size}rem + 0.3vw);
     `}
 `;
+
+export const OverlayContentContainer = styled.div`
+    position: relative;
+    width: calc(500px + 40vw);
+    max-width: 95vw;
+    min-height: 70vh;
+    justify-content: center;
+    align-items: center;
+    background-color: white;
+    flex-direction: column;
+`;

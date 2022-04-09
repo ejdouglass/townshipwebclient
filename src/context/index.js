@@ -14,8 +14,10 @@ export const actions = {
     NEW_MESSAGE: 'new_message',
     LOAD_PLAYER: 'load_player',
     LOGOUT: 'logout',
-    VISIT_NEXUS: 'visit_nexus'
-
+    VISIT_NEXUS: 'visit_nexus',
+    OPEN_TOWNSHIP_MENU: 'open_township_menu',
+    OPEN_PLAYER_MENU: 'open_player_menu',
+    EQUIPMENT_UPDATE: 'equipment_update'
 
 };
 
@@ -40,11 +42,10 @@ export const Reducer = (state, action) => {
             let newState = {...state};
             newState.locationData = {...newState.locationData, ...action.payload};
             newState.player.playStack.gps = action.payload.name;
-            console.log(`Making a newstate: `, newState);
             return {...newState};
         }
         case actions.NEW_MESSAGE: {
-            if (action.payload.origin.toLowerCase() !== state.player.playStack.gps.toLowerCase()) return;
+            if (action.payload.origin.toLowerCase() !== state.player.playStack.gps.toLowerCase()) return state;
             return {...state, locationData: {...state.locationData, history: [...state.locationData.history, action.payload]}};
         }
         case actions.LOAD_PLAYER: {
@@ -58,6 +59,25 @@ export const Reducer = (state, action) => {
             newState.player.playStack.gps = 'nexus';
             return {...newState};
         }
+        case actions.OPEN_TOWNSHIP_MENU: {
+            let newState = {...state};
+            newState.player.playStack.overlay = 'township_management';
+            return {...newState};
+        }
+        case actions.OPEN_PLAYER_MENU: {
+            let newState = {...state};
+            newState.player.playStack.overlay = 'player_management';
+            return {...newState};
+        }
+        case actions.EQUIPMENT_UPDATE: {
+            // we should be receiving action.payload = {equipment: OBJECT, inventory: ARRAY}
+            let newState = {...state};
+            newState.player.equipment = action.payload.equipment;
+            newState.player.inventory = action.payload.inventory;
+            newState.player.stats = action.payload.stats;
+            return {...newState};
+        }
+        
 
     }
 };

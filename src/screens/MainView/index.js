@@ -1,6 +1,6 @@
 import React, { useContext, useState, useEffect, useRef } from 'react';
 import { actions, Context, SocketContext } from '../../context';
-import { MyIcon, VocalSpan } from '../../styled';
+import { MyIcon, OverlayContentContainer, VocalSpan } from '../../styled';
 
 export default function MainView() {
     const socket = useContext(SocketContext);
@@ -15,10 +15,10 @@ export default function MainView() {
     }
 
     function handleWho() {
-        if (!state.player.name) {
+        if (!state?.player?.name) {
             return dispatch({type: actions.PROMPT_LOGIN});
         }
-        return alert(`You are ${state.player.name}.`);
+        return alert(`You are ${state?.player?.name}.`);
     }
 
     function logout() {
@@ -30,13 +30,13 @@ export default function MainView() {
 
     function sendChat(e) {
         e.preventDefault();
-        if (state.player.name == null) return;
+        if (state?.player?.name == null) return;
         const newChatAction = {
             echo: chatMessage,
             type: 'chat',
-            voice: state.player.voice || {},
+            voice: state?.player?.voice || {},
             targetType: 'chatroom', // chatroom vs chatventure vs ???
-            target: state.player.playStack.gps
+            target: state?.player?.playStack.gps
         };
         sendSocketData(newChatAction, 'chat_action');
         return setChatMessage('');
@@ -61,6 +61,10 @@ export default function MainView() {
         // player_update ... for when the socket insists that we need to update our core player data (hp, mp, effects, ?)
         socket.on('player_update', playerData => {
             return dispatch({type: actions.LOAD_PLAYER, payload: playerData});
+        });
+
+        socket.on('equipment_update', equipmentData => {
+            return dispatch({type: actions.EQUIPMENT_UPDATE, payload: equipmentData});
         });
 
         socket.on('location_update', locationData => {
@@ -92,40 +96,36 @@ export default function MainView() {
 
     }, [socket]);
 
-    // useEffect(() => {
-    //     if (state.player.name == null) console.log(`State has changed, and THE NAME IS GONE!`);
-    //     if (state.player.name != null) console.log(`State has changed, but the name exists, we LIVE!`);
-    // }, [state]);
-
     useEffect(() => {
-        if (state.player.playStack.gps != 'nexus' && state.player.chatventureID == null) messageEndRef.current.scrollIntoView();
+        if (state?.player?.playStack.gps != 'nexus' && state?.player?.chatventureID == null) messageEndRef.current.scrollIntoView();
     }, [state?.locationData?.history]);
 
     useEffect(() => {
-        if (state.player.name != null && state.player.playStack.gps !== 'nexus') chatRef.current.focus();
-    }, [state.player.name]);
+        if (state?.player?.name != null && state?.player?.playStack.gps !== 'nexus') chatRef.current.focus();
+    }, [state?.player?.name]);
 
     return (
         <div style={{padding: '1rem', width: '100vw', minHeight: '100vh', justifyContent: 'flex-start', alignItems: 'center', flexDirection: 'column'}}>
             
-            <div style={{position: 'fixed', width: '100vw', justifyContent: 'center', alignItems: 'center', height: '100vh', zIndex: '9', backgroundColor: 'hsla(240,50%,10%,0.6)', display: state.player.playStack.overlay === 'none' ? 'none' : 'flex'}}>
-                <OverlayContent overlay={state.player.playStack.overlay} dispatch={dispatch} sendSocketData={sendSocketData} />
+            <div style={{position: 'fixed', width: '100vw', top: '0', left: '0', justifyContent: 'center', alignItems: 'center', height: '100vh', zIndex: '9', backgroundColor: 'hsla(240,50%,10%,0.6)', display: state?.player?.playStack?.overlay === 'none' ? 'none' : 'flex'}}>
+                <OverlayContent state={state} dispatch={dispatch} sendSocketData={sendSocketData} logout={logout} />
             </div>
 
             <div id="toprow" style={{width: '100%', border: '1px solid black', height: '100px', alignItems: 'center', padding: '1rem'}}>
                 {/* NEXT: upgrade to some sort of player status HUD situation rather than simple button in both cases */}
-                {state.player.name == null ? (
-                    <button onClick={handleWho} style={{height: '100%', justifyContent: 'center', alignItems: 'center'}}>{state.player.name || `Who am I...?`}</button>
+                {state?.player?.name == null ? (
+                    <button onClick={handleWho} style={{height: '100%', justifyContent: 'center', alignItems: 'center'}}>{state?.player?.name || `Who am I...?`}</button>
                 ) : (
-                    <button onClick={logout} style={{height: '100%', justifyContent: 'center', alignItems: 'center'}}>{state.player.name || `Who am I...?`}</button>
+                    <button onClick={() => dispatch({type: actions.OPEN_PLAYER_MENU})} style={{height: '100%', justifyContent: 'center', alignItems: 'center'}}>{state?.player?.name || `Who am I...?`}</button>
                 )}
-                <button onClick={visitNexus} style={{display: state.player.name == null ? 'none' : 'flex', marginLeft: '0.75rem', height: '100%'}}>NEXUS</button>
+                <button onClick={() => dispatch({type: actions.OPEN_TOWNSHIP_MENU})} style={{height: '100%', justifyContent: 'center', marginLeft: '0.75rem', alignItems: 'center'}}>{state?.locationData?.nickname}</button>
+                <button onClick={visitNexus} style={{display: state?.player?.name == null ? 'none' : 'flex', marginLeft: '0.75rem', height: '100%'}}>NEXUS</button>
             </div>
 
-            {state.player.playStack.gps === 'nexus' ? (
+            {state?.player?.playStack.gps === 'nexus' ? (
                 <div style={{flexDirection: 'column', width: '100%'}}>
                     VISIT A PLACE, FRIENDO:
-                    {state.player.following.map((name, index) => 
+                    {state?.player?.following.map((name, index) => 
                         <button onClick={() => visitTownship(name)} key={index} style={{marginTop: '1rem'}}>{name}</button>
                     )}
                 </div>
@@ -136,7 +136,7 @@ export default function MainView() {
 
                     {/* NOTE: adjust the height of the below later, but ensure height is well-defined so that overflow scrolls properly */}
                     <div style={{width: '100%', flexDirection: 'column', border: '2px solid #0AF', height: '70vh', overflow: 'scroll'}}>
-                        {state?.locationData?.history.map((historyObj, index) => (
+                        {state?.locationData?.history.slice(state?.locationData?.history?.length - 21, state?.locationData?.history?.length).map((historyObj, index) => (
                             <ChatEvent key={index} chatEventObject={historyObj} />
                             // <div key={index} style={{width: '100%', padding: '1rem', margin: '0.5rem 0', border: '1px solid hsl(240,20%,90%)', borderRadius: '0.5rem'}}>{historyObj.icon != null && <CharacterIcon size={'50px'} iconSettings={historyObj.icon}/>}<VocalSpan voice={historyObj.voice}>{historyObj.echo}</VocalSpan></div>
                         ))}
@@ -145,8 +145,8 @@ export default function MainView() {
                     </div>
 
                     <form style={{display: 'flex', width: '100%'}} onSubmit={sendChat}>
-                        <input type='text' ref={chatRef} disabled={state.player.name == null} style={{display: 'flex', width: 'calc(100% - 50px)'}} value={chatMessage} onChange={e => setChatMessage(e.target.value)} placeholder='Hello, World' />
-                        <button disabled={state.player.name == null} style={{width: '50px'}} onClick={sendChat}>{'>'}</button>
+                        <input type='text' ref={chatRef} disabled={state?.player?.name == null} style={{display: 'flex', width: 'calc(100% - 50px)'}} value={chatMessage} onChange={e => setChatMessage(e.target.value)} placeholder={state?.player?.name == null ? `You've forgotten your voice.` : `Hello, World`} />
+                        <button disabled={state?.player?.name == null} style={{width: '50px'}} onClick={sendChat}>{'>'}</button>
                     </form>
                 
                 </div>
@@ -159,10 +159,36 @@ export default function MainView() {
 
 }
 
-function OverlayContent({overlay, dispatch, sendSocketData}) {
+
+
+
+
+// const TownshipOverlay = ({ overlayMode, dispatch, sendSocketData }) => {
+
+//     return (
+//         <div style={{position: 'fixed', top: '0', left: '0', width: '100vw', height: '100%', backgroundColor: 'hsla(240,20%,10%,0.5)'}}>
+
+//         </div>
+//     )
+// }
+
+
+
+
+
+// this poor component feels soon to be wildly overloaded :P
+// changed my mind, going to keep using OverlayContent here, and may refactor out the login-specific stuff instead
+function OverlayContent({state, dispatch, sendSocketData, logout}) {
+    // hm, getting stale townshipName data? ... investigate further
     const [loginCredentials, setLoginCredentials] = useState({name: '', password: ''});
+    const [townshipName, setTownshipName] = useState('');
+    const [subMenu, setSubMenu] = useState({
+        type: null,
+        meta: null
+    });
 
     function dismissMe() {
+        setTownshipName(state?.locationData?.nickname || '');
         setLoginCredentials({name: '', password: ''});
         return dispatch({type: actions.DISMISS_OVERLAY});
     }
@@ -183,7 +209,43 @@ function OverlayContent({overlay, dispatch, sendSocketData}) {
         return dispatch({type: actions.PROMPT_CHARACTER_CREATION});
     }
 
-    switch (overlay) {
+    function openEquipmentMenu(slot) {
+//!MHR
+        /*
+        
+            How to Equip your DRAGON
+            - clicking on an equipment slot should bring up a new menu to [Remove] or scroll through other stuff to equip, based on an inventory filter
+            - [Remove] shouldn't show up if nothing is equipped
+            - client knows inventory and equipment, so can 'show' but not 'tell'
+            - CLICK to show stat changes upon new equipment, then EQUIP button to equip? or just click-to-equip?
+        
+        */
+       return setSubMenu({type: 'equip', meta: slot});
+        // return alert(`You wish to do something with the equipment on ${slot}?`);
+    }
+
+    function parseSlotMatch(item) {
+        // receives item, including item.slot, and we need to filter if that item.slot is compatible with subMenu.meta, which is equal to the player.equipment.slot
+        // this is basically just a way around rightHand and leftHand matching up to item.slot: hand (doublehand will have to be some special flag somewhere under this model)
+        // can also be handy later if we implement accessory2, trinket2, etc... quick update to this fxn, done!
+        let matchVar;
+        if (subMenu.meta === 'rightHand' || subMenu.meta === 'leftHand') matchVar = 'hand'
+            else matchVar = subMenu.meta;
+        if (item.slot === subMenu.meta) return true
+            else return false;
+    }
+
+    function serverEquip(item) {
+        if (item === null) item = {name: null};
+        sendSocketData({slot: subMenu.meta, item: item}, 'equip_item');
+        return setSubMenu({type: null, meta: null});
+    }
+
+    useEffect(() => {
+        setTownshipName(state?.locationData?.nickname)
+    }, [state]);
+
+    switch (state?.player?.playStack?.overlay) {
         case 'login': {
             return (
                 <div style={{width: 'calc(300px + 30%)', maxWidth: '85%', minHeight: '50vh', padding: '1rem', textAlign: 'center', flexDirection: 'column', backgroundColor: 'white', justifyContent: 'center', alignItems: 'center'}}>
@@ -212,9 +274,143 @@ function OverlayContent({overlay, dispatch, sendSocketData}) {
             )
         }
 
+        case 'player_management': {
+            return (
+                <OverlayContentContainer>
+
+
+
+                    {/* The prototype for equipment/inventory sub-menu container... in this case, we'll do EQUIPMENT SWAP, so we'll use subMenu.meta to filter */}
+                    <div style={{display: subMenu.type != null ? 'flex' : 'none', position: 'absolute', justifyContent: 'center', alignItems: 'center', zIndex: '10', width: '100%', height: '100%', backgroundColor: 'hsla(240,10%,10%,0.5)'}}>
+                        <button style={{position: 'absolute', top: '1rem', left: '1rem'}} onClick={() => setSubMenu({type: null, meta: null})}>X</button>
+                        <div style={{width: '80%', minHeight: '80%', justifyContent: 'center', alignItems: 'center', backgroundColor: 'white', flexWrap: 'wrap', gap: '1rem'}}>
+                            {(subMenu?.meta != null && state?.player?.equipment[subMenu?.meta] != null) && <button style={{width: '120px', height: '50px'}} onClick={() => serverEquip(null)}>UNEQUIP</button>}
+                            {state?.player?.inventory?.filter(parseSlotMatch).map((item, index) => (
+                                <button style={{width: '120px', height: '50px'}} onClick={() => serverEquip(item)} key={index}>{item.name}</button>
+                            ))}
+                        </div>
+                    </div>
+
+
+
+                    <div>{state?.player?.name}: {state?.player?.currentClass.toUpperCase()}</div>
+
+                    <div style={{alignItems: 'center', justifyContent: 'center', padding: '1rem', textAlign: 'center'}}>STATS! Which we should ABSOLUTELY do manually in the near future.</div>
+                    <div style={{gap: '1rem', flexWrap: 'wrap', padding: '1rem', alignItems: 'center', justifyContent: 'center'}}>
+                        {Object.keys(state?.player?.stats)?.map((stat, index) => (
+                            <div key={index}>{stat.toUpperCase()}: {state.player.stats[stat]}</div>
+                        ))}
+                    </div>
+
+                    
+
+
+                    {/* This would be a great spot to introduce an EquipmentSlot component */}
+                    {/* Also, even on mobile, we could readily structure this as a double-column concept */}
+                    <div style={{flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start'}}>
+                        <div style={{width: '100%', padding: '0.75rem'}}>EQUIPMENT</div>
+                        <button onClick={() => openEquipmentMenu('rightHand')} style={{justifyContent: 'flex-start', width: '100%', flexDirection: 'row', borderBottom: '1px solid #CCC', alignItems: 'center'}}>
+                            <div style={{justifyContent: 'flex-end', width: '120px', paddingRight: '0.5rem'}}>R.HAND</div>
+                            <div><Icon size={'50px'} icon={state?.player?.equipment?.rightHand?.icon || {}} /></div>
+                            <div style={{paddingLeft: '0.5rem'}}>{state?.player?.equipment?.rightHand?.name || `(nothing)`}</div>
+                        </button>
+                        <button onClick={() => openEquipmentMenu('leftHand')} style={{justifyContent: 'flex-start', width: '100%', flexDirection: 'row', borderBottom: '1px solid #CCC', alignItems: 'center'}}>
+                            <div style={{justifyContent: 'flex-end', width: '120px', paddingRight: '0.5rem'}}>L.HAND</div>
+                            <div><Icon size={'50px'} icon={state?.player?.equipment?.leftHand?.icon || {}} /></div>
+                            <div style={{paddingLeft: '0.5rem'}}>{state?.player?.equipment?.leftHand?.name || `(nothing)`}</div>
+                        </button>
+                        <button onClick={() => openEquipmentMenu('head')} style={{justifyContent: 'flex-start', width: '100%', flexDirection: 'row', borderBottom: '1px solid #CCC', alignItems: 'center'}}>
+                            <div style={{justifyContent: 'flex-end', width: '120px', paddingRight: '0.5rem'}}>HEAD</div>
+                            <div><Icon size={'50px'} icon={state?.player?.equipment?.head?.icon || {}} /></div>
+                            <div style={{paddingLeft: '0.5rem'}}>{state?.player?.equipment?.head?.name || `(nothing)`}</div>
+                        </button>
+                        <button onClick={() => openEquipmentMenu('body')} style={{justifyContent: 'flex-start', width: '100%', flexDirection: 'row', borderBottom: '1px solid #CCC', alignItems: 'center'}}>
+                            <div style={{justifyContent: 'flex-end', width: '120px', paddingRight: '0.5rem'}}>BODY</div>
+                            <div><Icon size={'50px'} icon={state?.player?.equipment?.body?.icon || {}} /></div>
+                            <div style={{paddingLeft: '0.5rem'}}>{state?.player?.equipment?.body?.name || `(nothing)`}</div>
+                        </button>
+                        <button onClick={() => openEquipmentMenu('accessory')} style={{justifyContent: 'flex-start', width: '100%', flexDirection: 'row', borderBottom: '1px solid #CCC', alignItems: 'center'}}>
+                            <div style={{justifyContent: 'flex-end', width: '120px', paddingRight: '0.5rem'}}>ACCESSORY</div>
+                            <div><Icon size={'50px'} icon={state?.player?.equipment?.accessory?.icon || {}} /></div>
+                            <div style={{paddingLeft: '0.5rem'}}>{state?.player?.equipment?.accessory?.name || `(nothing)`}</div>
+                        </button>
+                        <button onClick={() => openEquipmentMenu('trinket')} style={{justifyContent: 'flex-start', width: '100%', flexDirection: 'row', alignItems: 'center'}}>
+                            <div style={{justifyContent: 'flex-end', width: '120px', paddingRight: '0.5rem'}}>TRINKET</div>
+                            <div><Icon size={'50px'} icon={state?.player?.equipment?.trinket?.icon || {}} /></div>
+                            <div style={{paddingLeft: '0.5rem'}}>{state?.player?.equipment?.trinket?.name || `(nothing)`}</div>
+                        </button>
+                    </div>
+
+
+                    <div style={{marginTop: '1rem'}}>
+                        INVENTORY
+                        {state?.player?.inventory?.map((itemObj, index) => (
+                            <button key={index}>{itemObj.name}</button>
+                        ))}
+                    </div>
+                    <button style={{position: 'absolute', top: '1rem', left: '1rem'}} onClick={dismissMe}>X</button>
+                    <button style={{marginTop: '1rem'}} onClick={logout}>Logout</button>
+                </OverlayContentContainer>          
+            )
+        }
+
+        case 'township_management': {
+            // oh my. we're ASSUMING we can rename right now, so uh, definitely refactor to check to see if we have that kind of authority.
+            // also, this crashes in Zenithica, so mmmmmaybe we want to have separate renders for "this is MY town" vs "this is A town"
+            if (state?.locationData?.name === state?.player?.name) {
+                return (
+                    <OverlayContentContainer>
+                        <div style={{alignItems: 'center', justifyContent: 'center', padding: '1rem', textAlign: 'center'}}>
+                            {/* This, for whatever reason, works a TON better than the local townshipName state variable... */}
+                            
+                            {state?.locationData?.name === state?.player?.name ? (
+                                <div>
+                                    <input type='text' value={townshipName} onChange={e => setTownshipName(e.target.value)} />
+                                    <button>{townshipName === state?.locationData?.nickname ? '...' : 'Rename!'}</button>
+                                </div>
+                            ) : (
+                                <div>{townshipName}</div>
+                            )}
+                            {/* <input type='text' value={townshipName} onChange={e => setTownshipName(e.target.value)} /> */}
+                            {/* <button>{townshipName === state?.player?.township?.nickname ? '...' : `Rename!`}</button> */}
+                        </div>
+    
+                        <div>Structs Tho</div>
+                        <div style={{flexDirection: 'column', alignItems: 'center', width: '100%'}}>
+                            <div>Your STRUCTS, sir or madam!</div>
+                            {Object.keys(state?.locationData?.structs)?.map((structID, index) => (
+                                <button style={{backgroundColor: '#0AF', color: 'white', padding: '0.85rem', width: '500px', maxWidth: '80%', height: '80px', marginBottom: '0.75rem'}} key={index}>{structID.toUpperCase()}</button>
+                            ))}
+                        </div>
+    
+                        <div>Township Summary!</div>
+                        {/* 
+                            Population, NPCs, income, age
+                        
+                        
+                        */}
+                        
+                        <div>TownShip Management Concepts!</div>
+                        {/* 
+                            So, township management! What do we want to see here?
+                        
+                        */}
+                        
+                        <button style={{position: 'absolute', top: '1rem', left: '1rem'}} onClick={dismissMe}>X</button>
+                    </OverlayContentContainer>
+                )
+            }  else return (
+                <OverlayContentContainer>
+                    <div>You don't KNOW ME</div>
+                    <button style={{position: 'absolute', top: '1rem', left: '1rem'}} onClick={dismissMe}>X</button>
+                </OverlayContentContainer>
+            )
+        }
+
         default: {
             return (
                 <div>
+                    ... if you're seeing me, something wildly wacky has happened. Hi? Hi.
                     <button onClick={dismissMe}>DISMISS</button>
                 </div>
             )
@@ -295,7 +491,7 @@ const CharacterCreationComponent = ({ dispatch, sendSocketData }) => {
         'none': 'I am a...',
         'warrior': 'I am a Warrior, rawr!',
         'rogue': 'I am a Rogue, whoosh!',
-        'healer': 'I am a Healer, relax!',
+        'sympath': 'I am a Sympath, relax!',
         'mage': 'I am a Mage, boom!'
     }
 
@@ -308,7 +504,7 @@ const CharacterCreationComponent = ({ dispatch, sendSocketData }) => {
             <div style={{flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center'}}>
                 <button style={{margin: '0.5rem', width: '100px'}} onClick={() => setSelectedClass('rogue')}>Rogue</button>
                 <button style={{margin: '0.5rem', width: '100px'}} onClick={() => setSelectedClass('warrior')}>Warrior</button>
-                <button style={{margin: '0.5rem', width: '100px'}} onClick={() => setSelectedClass('healer')}>Healer</button>
+                <button style={{margin: '0.5rem', width: '100px'}} onClick={() => setSelectedClass('sympath')}>Sympath</button>
                 <button style={{margin: '0.5rem', width: '100px'}} onClick={() => setSelectedClass('mage')}>Mage</button>
             </div>
             <button disabled={selectedClass === 'none'} onClick={() => wrappingUp > 0 ? setCreationPage(4) : setCreationPage(creationPage + 1)}>{selectedClass === 'none' ? `...` : `${classDescriptions[selectedClass]}`}</button>
@@ -444,6 +640,59 @@ const CharacterCreationComponent = ({ dispatch, sendSocketData }) => {
 
 
 
+
+const Icon = ({ size, icon }) => {
+    switch (icon.type) {
+        case 'human': {
+            return (
+                <div style={{width: size || '100%', height: size || '100%', border: '1px solid black', position: 'relative', flexDirection: 'column', alignItems: 'center'}}>
+                    {/* TOP HEAD */}
+                    <div style={{position: 'absolute', backgroundColor: 'tan', height: '50%', width: '80%', borderRadius: '100%', transform: `scale(${icon.xScale},${icon.yScale})`}}></div>
+        
+                    {/* MID HEAD/FACE */}
+                    <div style={{position: 'absolute', backgroundColor: 'tan', height: '35%', top: '25%', width: '80%', transform: `scale(${icon.xScale},${icon.yScale})`}}></div>
+        
+                    {/* BOTTOM HEAD/JAW */}
+                    <div style={{position: 'absolute', backgroundColor: 'tan', bottom: '0', height: '80%', width: '80%', borderRadius: '100%', transform: `scale(${icon.xScale},${icon.yScale})`}}></div>
+        
+                    {/* EYE1 */}
+                    <div style={{position: 'absolute', left: '25%', top: '40%', width: '10%', height: '10%', transform: 'scaleY(90%)'}}>
+                        <div style={{position: 'relative', width: '150%', height: '100%', borderRadius: '50%', backgroundColor: 'white'}}>
+                            <div style={{position: 'relative', width: '150%', left: '25%', height: '100%', borderRadius: '100%', backgroundColor: 'blue'}}></div>
+                        </div>
+                    </div>
+        
+                    {/* EYE2 ... for now we can just have it be the first eye 'mirrored,' and can get 'fancy' with it later */}
+                    <div style={{position: 'absolute', right: '25%', top: '40%', width: '10%', height: '10%', transform: 'scaleY(90%)'}}>
+                        <div style={{position: 'relative', width: '100%', height: '100%', borderRadius: '50%', backgroundColor: 'white'}}>
+                            <div style={{position: 'relative', width: '150%', right: '25%', height: '100%', borderRadius: '100%', backgroundColor: 'blue'}}></div>
+                        </div>
+                    </div>
+        
+                    {/* NOSE? */}
+                    <div style={{position: 'absolute', width: '15%', bottom: '35%', height: '1%', border: '1px solid hsl(40,60%,30%)', borderColor: 'transparent transparent hsl(40,60%,30%) transparent', borderRadius: '0 0 50% 50%'}}></div>
+        
+                    {/* MOUTH maybe? */}
+                    <div style={{position: 'absolute', width: '20%', bottom: '20%', height: '1%', backgroundColor: 'black'}}></div>
+        
+                </div>
+            )            
+        }
+
+        case 'x':
+        default: {
+            return (
+                <div style={{width: size || '100%', height: size || '100%', border: '1px solid black', position: 'relative', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'}}>
+                    X
+                </div>
+            )
+        }
+    }
+}
+
+
+
+
 const CharacterIcon = ({ size, iconSettings }) => {
 
 
@@ -471,21 +720,21 @@ const CharacterIcon = ({ size, iconSettings }) => {
             <div style={{position: 'absolute', backgroundColor: 'tan', bottom: '0', height: '80%', width: '80%', borderRadius: '100%', transform: `scale(${iconStuff.xScale},${iconStuff.yScale})`}}></div>
 
             {/* EYE1 */}
-            <div style={{position: 'absolute', left: '25%', top: '35%', width: '10%', height: '10%', transform: 'scaleY(90%)'}}>
+            <div style={{position: 'absolute', left: '25%', top: '40%', width: '10%', height: '10%', transform: 'scaleY(90%)'}}>
                 <div style={{position: 'relative', width: '150%', height: '100%', borderRadius: '50%', backgroundColor: 'white'}}>
                     <div style={{position: 'relative', width: '150%', left: '25%', height: '100%', borderRadius: '100%', backgroundColor: faceValue.eyeColor[iconSettings?.eyeColor || 0]}}></div>
                 </div>
             </div>
 
             {/* EYE2 ... for now we can just have it be the first eye 'mirrored,' and can get 'fancy' with it later */}
-            <div style={{position: 'absolute', right: '25%', top: '35%', width: '10%', height: '10%', transform: 'scaleY(90%)'}}>
+            <div style={{position: 'absolute', right: '25%', top: '40%', width: '10%', height: '10%', transform: 'scaleY(90%)'}}>
                 <div style={{position: 'relative', width: '100%', height: '100%', borderRadius: '50%', backgroundColor: 'white'}}>
                     <div style={{position: 'relative', width: '150%', right: '25%', height: '100%', borderRadius: '100%', backgroundColor: faceValue.eyeColor[iconSettings?.eyeColor || 0]}}></div>
                 </div>
             </div>
 
             {/* NOSE? */}
-            <div style={{position: 'absolute', width: '10%', bottom: '40%', height: '1%', backgroundColor: 'hsl(40,60%,70%)'}}></div>
+            <div style={{position: 'absolute', width: '15%', bottom: '35%', height: '1%', border: '1px solid hsl(40,60%,30%)', borderColor: 'transparent transparent hsl(40,60%,30%) transparent', borderRadius: '0 0 50% 50%'}}></div>
 
             {/* MOUTH maybe? */}
             <div style={{position: 'absolute', width: '20%', bottom: '20%', height: '1%', backgroundColor: 'black'}}></div>
