@@ -210,7 +210,6 @@ function OverlayContent({state, dispatch, sendSocketData, logout}) {
     }
 
     function openEquipmentMenu(slot) {
-//!MHR
         /*
         
             How to Equip your DRAGON
@@ -239,6 +238,10 @@ function OverlayContent({state, dispatch, sendSocketData, logout}) {
         if (item === null) item = {name: null};
         sendSocketData({slot: subMenu.meta, item: item}, 'equip_item');
         return setSubMenu({type: null, meta: null});
+    }
+
+    function handleStructInteractionRequest(structToInteract, interaction) {
+        return sendSocketData({structToInteract: structToInteract, interaction: interaction}, 'interact_with_struct');
     }
 
     useEffect(() => {
@@ -376,11 +379,29 @@ function OverlayContent({state, dispatch, sendSocketData, logout}) {
                         </div>
     
                         <div>Structs Tho</div>
+                        {/* !MHR */}
                         <div style={{flexDirection: 'column', alignItems: 'center', width: '100%'}}>
                             <div>Your STRUCTS, sir or madam!</div>
-                            {Object.keys(state?.locationData?.structs)?.map((structID, index) => (
-                                <button style={{backgroundColor: '#0AF', color: 'white', padding: '0.85rem', width: '500px', maxWidth: '80%', height: '80px', marginBottom: '0.75rem'}} key={index}>{structID.toUpperCase()}</button>
-                            ))}
+                            {/* {Object.keys(state?.locationData?.structs)?.map((structID, index) => (
+                                <button style={{backgroundColor: '#0AF', color: 'white', padding: '0.85rem', width: '500px', maxWidth: '80%', height: '80px', marginBottom: '0.75rem'}} key={index}>{structID.toUpperCase()}
+
+                                </button>
+                            ))} */}
+                                {Object.keys(state?.locationData?.structs)?.map((structID, index) => {
+                                    let thisStruct = state.locationData.structs[structID];
+                                    return (
+                                        <div key={index} style={{display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', backgroundColor: '#0AF', color: 'white', padding: '0.85rem', width: '500px', maxWidth: '80%', marginBottom: '0.75rem'}}>
+                                            <div style={{width: '100%', alignItems: 'center'}}><Icon icon={thisStruct.icon} size='50px' /> <div style={{marginLeft: '0.75rem'}}>{thisStruct.nickname}</div></div>
+                                            <div style={{width: '100%', flexWrap: 'wrap', marginTop: '1rem'}}>
+                                                {Object.keys(thisStruct.interactions).map((interactionKey, index) => (
+                                                    <button key={index} onClick={() => handleStructInteractionRequest(thisStruct, interactionKey)} style={{marginRight: '0.75rem', backgroundColor: 'gray'}}>{interactionKey.toUpperCase()}</button>
+                                                ))}
+                                            </div>
+
+                                        </div>
+                                    )
+
+                            })}
                         </div>
     
                         <div>Township Summary!</div>
@@ -489,10 +510,10 @@ const CharacterCreationComponent = ({ dispatch, sendSocketData }) => {
 
     const classDescriptions = {
         'none': 'I am a...',
-        'warrior': 'I am a Warrior, rawr!',
+        'fighter': 'I am a Fighter, rawr!',
         'rogue': 'I am a Rogue, whoosh!',
         'sympath': 'I am a Sympath, relax!',
-        'mage': 'I am a Mage, boom!'
+        'sorcerer': 'I am a Sorcerer, boom!'
     }
 
     // Set up in an array for now, but once we have the value we can pass it directly when it's attached to player variables
@@ -503,9 +524,9 @@ const CharacterCreationComponent = ({ dispatch, sendSocketData }) => {
             <div style={{width: '100%', marginBottom: '1rem', textAlign: 'center', justifyContent: 'center'}}>A voice in your head quietly prompts, "Don't worry. You do have a name. Let me help you remember."<br/>"What sort of adventurer are you?"</div>
             <div style={{flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center'}}>
                 <button style={{margin: '0.5rem', width: '100px'}} onClick={() => setSelectedClass('rogue')}>Rogue</button>
-                <button style={{margin: '0.5rem', width: '100px'}} onClick={() => setSelectedClass('warrior')}>Warrior</button>
+                <button style={{margin: '0.5rem', width: '100px'}} onClick={() => setSelectedClass('fighter')}>Fighter</button>
                 <button style={{margin: '0.5rem', width: '100px'}} onClick={() => setSelectedClass('sympath')}>Sympath</button>
-                <button style={{margin: '0.5rem', width: '100px'}} onClick={() => setSelectedClass('mage')}>Mage</button>
+                <button style={{margin: '0.5rem', width: '100px'}} onClick={() => setSelectedClass('sorcerer')}>Sorcerer</button>
             </div>
             <button disabled={selectedClass === 'none'} onClick={() => wrappingUp > 0 ? setCreationPage(4) : setCreationPage(creationPage + 1)}>{selectedClass === 'none' ? `...` : `${classDescriptions[selectedClass]}`}</button>
             

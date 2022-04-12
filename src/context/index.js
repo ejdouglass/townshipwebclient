@@ -90,9 +90,13 @@ const initialState = {
         name: undefined,
         icon: {}, // put the Nobody face in here :P
         playStack: {
-            gps: 'Zenithica', // hmmmm...
-            doing: 'none',
-            at: 'none',
+            gps: 'Zenithica',
+            nickname: 'Zenithica',
+            target: null, // playStack.target can be... a whole LOT of things potentially, currently :P ... when in use, probably an object {type: 'button/npc', id: ''}
+            chatventure: null, // either null or an id; if null, we'll 'safely' assume we're in chat mode
+            mode: '', // chill, battle, choose, trade, watch, etc. ... so we know what menu(s) to put up, and then we can get the data from player.chatventure's obj?
+            doing: 'none', // 'doing' might be redundant at this stage
+            at: 'none', // this allows us to specify the 'struct' we're at, potentially useful information
             overlay: 'none',
             data: {}
         }
@@ -105,8 +109,11 @@ const initialState = {
     //     data: {}
     // },
     locationData: {
+        name: ``,
+        nickname: ``,
         description: ``,
-        history: []
+        history: [],
+        structs: {}
     },
     alertString: undefined,
     currentTownship: undefined,
