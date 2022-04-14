@@ -19,45 +19,67 @@ NOTE: while we haven't decided on a First Chatventure, we can wipe everything du
   - 'wake up' in your own township, and get back to Zenithica to learn more after a series of wacky events?
 
 QUICKSCRATCH
--) instead of 'static breaks,' have BUFFS and DEBUFFS be conditional?
-  - OH! Ok let's scrap the 'specificy' concept and go with physical = balance, magical = focus, and you gain/lose balance/focus!
-  - so you can +1 your balance, attempt to -1 opponent's balance, etc.
-  - can think about other variables later, if we want to add more, but going with the simple phy/mag duality seems solid for now
+-) new balance and focus: depending on your actions, and how recently they were taken, you will gain or lose balance/focus
+  - so feel free to swing like a lunatic, but you'll quickly lose your balance as you go deeper into action debt
+  - focus similar for focus-centric actions such as spells
+  - this does open up the idea of 'balancing' action debt between physical and mental
+  - also adding to the action debt of opponents
+  - now we have to define action debt to make this fly :P ... KISS it gently, I hope
 -) battle log data/encounter logged data... for achievements, results, resolution possibilities
   - when a chatventure gives you lemons... I mean, an encounter (type: battle), track what everyone got up to! for AI purposes as well as different resolution concepts
--) filtering functions: instead of ten kajillion mods, you could have a function ref attached to equipment that takes specific action types and rejiggers them
-  - currently kind of an idle thought, and we'd probably want an extra checker attached somewhere such as "uponSpellCast: {rightHand: true, head: true}" 
-    which would let us know which slots to hit up in our spellCasting extravaganza
-  - this would potentially scale more dynamically, but we'll think about it further first 
--) should we add locationData: type to distinguish if we're in a chat vs chatventure?
+x) should we add locationData: type to distinguish if we're in a chat vs chatventure?
+  - resolved: this info lives primarily in playStack right now as well as player.chatventure 
 -) vaguely ACNH approach of daily or per-time-frame chance of visitation, where 'guaranteed' special npc shows up under pity conditions
 -) party system implementation... sending immediate requests, possibly 'event' requests, and under what conditions to form a party
 -) patrol joining implementation for multiplayer, keeping a mind open to other possibilities down the road, plus when all-for-one vs one-for-self (dependent vs independent play)
   - this also sort of requires being able to visit other townships, so let's implement "following" and privacy later
 
--) reinstate skills, have learning abilities raise skills by some amount
+-) reinstate skills, have learning abilities raise skills by some amount (such as Zephyr raising magicLore, windLore, restoreLore... or whatever we end up calling anything)
+  - the skill itself will have a record of how much 'value' is given per level, OR automatically scales based on tier, modded by any special values
   - using a skill increases its exp AND gives you exp in proportion; no difference between USE and EXP anymore
+  - you spend accumulated EXP on unlocking new abilities, potentially powerleveling extant abilities, etc.
+  - 
 
 -) NOTE: structRequesting will need to change to always check the 'visit' first, join in on that, and then push any specifically chosen EVENT sub-mode from there
   - default is always visit for now
+  - this is in cases such as general store, where you have to be in the 'visit' of it before you can shop
+  - in cases such as exploring, a new chatventure is created, so you can 'skip' the visit, so to speak
 
-x) add structs to brandNewPlayer (perimeter, at least) ... DONE
-x) add struct visitation anchor to client and server ... DONE
-3) successfully 'visit' perimeter, creating a chatventure and doing proper io.to shoutouts
-4) set up the LEAVE option to... well, leave the chatventure, including dismantling the chatventure if it's got nobody left in it
 
-X) skim quickscratch, add more interactions, building up to two big ones: patrol and trade
+x) successfully 'visit' perimeter, creating a chatventure and doing proper io.to shoutouts
+x) set up the LEAVE option to... well, leave the chatventure, including dismantling the chatventure if it's got nobody left in it, cuz right now? TRAPPED FOREVER~
+
+x) enable sending chats to chatventure
+x) retrieve chatventure history on login/connection so refresh persists history data and pops it in
+2) test playStack.doing OR mode for enabling combat concepts
+  - start it out with just YOU FIND MONSTER(S), but you scout them, so you can FIGHT, KITE, or FLEE
+  - for now FIGHT starts a battle, and FLEE just dismisses the possibility
+  - let's start with all patrols revealing a single DROOLING HUSK, which if fought just stands there naked and takes hits :P
+
+  - oh, before we wrap up, send to history ... BOB GOES ON PATROL, Y'ALL (and any other echo data we're interested in)
+
+
+3) start a PATROL (configure successfully from both perimeter AND struct menu) -- have a TEST BATTLE button always available for DUMMY
+4) figure out how to parse player/mob/party information within chatventure window (likely will involve having to add more info to the chatventure class)
+5) COMBAT! fight something! even if it doesnt know how to fight back yet! -- initially, just be able to HIT or PEW for testing and numbers
+6) combat resolution -- win (with some loot, as least wallet+) or flee (with any basic considerations there)
+7) give things some TEETH, add combat resolution scenario -- lose (likewise with basic considerations)
+
+o) SHOPPING!
+  - will probably require some thought into ware generation, ideally with a little bit of RNG and vibe checking
+
+O) skim quickscratch, add more interactions, building up to two big ones: patrol and trade
+O) 
 
 
 
 Fiddlesticks
-[x] warrior -> fighter
-[x] mage -> sorcerer
-[x] Flesh out some more blueprints and Struct class stuff to allow varied struct creation
-[x] Add perimeter to struct blueprints
-[x] Redesign abilityBlueprints to conceptually use the rather exciting struct mode
+[x] Add support for more equipment blueprints, as well as mods and materials to construct them with
+[_] Refactor/refine township.worldMap to INCLUDE ref to township, as well as other points of interest, so we can grab 'weather' or any other relevant data
+  - thinking about this for struct.visit() and other upcoming actions
+[_] Add 'location' to Chatventure() init, using the above as a more thorough template
 [_] Change up strut init() functions to include the creation of a belongsTo that points to the allSouls key where this thing lives/was created in
-[_] Change perimeter to townwall
+[_] Change perimeter to townwall (we'll assume a starting basic wood structure)
 [_] Add towngate struct, call it south gate or main gate or whatever, have it nickname descriptively perhaps, and have THAT be the patrol origin
 [_] ability aoe => targetOptions, defaultTarget
 [_] Design struct interaction basics, including particularly "patrol" on perimeter, which starts a CHATVENTURE! our first!
@@ -96,6 +118,8 @@ Fiddlesticks
 
 
 HIGHER DEV
+[_] For socket shenanigans, some sort of socketRestore fxn on each socket action -- check thisPlayer, if borked, attempt to fix
+  - should be pretty easy, do a quick two-step function; since the socket IS active, it should be receiving a jwt? we can test for that
 [_] Building icons (at least super basic ones where you can tell it's a building at a glance... can use type: 'img' for Icon if that's easier right now)
 [_] HUDBox for more visually descriptive states of characters, including face
 [_] Set up a viable actual-play township situation (growing, interaction, interest, some life)
@@ -130,12 +154,12 @@ BROKEN?
   - it's due to thisPlayer.playStack.gps being undefined, so have a way to handle/fallback for that
   - this also seems to happen when I'm editing the server file and it re-saves/re-launches, something gets corrupted/detached/comes loose somewhere
 ..
-[_]
 
 
 
 CONSIDERATIONS
 [_] When in combat, or other such situations, where should the live combat info live? state.playStack.data? state.contextData (currently nonexistent)?
+[_] All functions for struct actions (such as 'visit') call on requestor's current playStack.gps data -- it may serve to change it so we can optionally pass in more precise data
 [_] I'm using OVERLAY for character creation, but it's meant to be the 'primary overlay' for things like stats, inventory, etc. Mutually exclusive stuff.
   - ChatVenture should likely be its own component. Probably not the only scenario like this.
 [_] Dig deeper on playStack, its uses, its execution

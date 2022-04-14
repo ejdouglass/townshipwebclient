@@ -24,4 +24,5 @@ export const OverlayContentContainer = styled.div`
     align-items: center;
     background-color: white;
     flex-direction: column;
+    z-index: 9;
 `;

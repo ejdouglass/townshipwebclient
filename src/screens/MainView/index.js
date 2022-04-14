@@ -60,6 +60,7 @@ export default function MainView() {
 
         // player_update ... for when the socket insists that we need to update our core player data (hp, mp, effects, ?)
         socket.on('player_update', playerData => {
+            // console.log(`RECEIVED NEW PLAYER DATA: `, playerData);
             return dispatch({type: actions.LOAD_PLAYER, payload: playerData});
         });
 
@@ -73,6 +74,14 @@ export default function MainView() {
 
         socket.on('room_message', newMessage => {
             return dispatch({type: actions.NEW_MESSAGE, payload: newMessage});
+        });
+
+        socket.on('chatventure_event', eventObj => {
+            console.log(`An event just occurred in your chatventure: `, eventObj);
+            // HERE: new dispatch for NEW_CHATVENTURE_EVENT
+            // {state?.player?.chatventure?.history?.map((historyEvent, index) => (
+            
+            return dispatch({type: actions.NEW_CHATVENTURE_EVENT, payload: eventObj});
         });
 
         socket.on('socket_test', socketDataObj => {
@@ -104,9 +113,17 @@ export default function MainView() {
         if (state?.player?.name != null && state?.player?.playStack.gps !== 'nexus') chatRef.current.focus();
     }, [state?.player?.name]);
 
+    useEffect(() => {
+        if (state?.player?.chatventure == null) chatRef.current.focus();
+    }, [state?.player?.chatventure])
+
     return (
         <div style={{padding: '1rem', width: '100vw', minHeight: '100vh', justifyContent: 'flex-start', alignItems: 'center', flexDirection: 'column'}}>
-            
+
+
+            <div style={{position: 'fixed', width: '100vw', top: '0', left: '0', justifyContent: 'center', alignItems: 'center', height: '100vh', zIndex: '8', backgroundColor: 'hsla(240,50%,10%,0.6)', display: state?.player?.playStack?.chatventure == null ? 'none' : 'flex'}}>
+                <ChatventureContent state={state} dispatch={dispatch} sendSocketData={sendSocketData} logout={logout} />
+            </div>            
             <div style={{position: 'fixed', width: '100vw', top: '0', left: '0', justifyContent: 'center', alignItems: 'center', height: '100vh', zIndex: '9', backgroundColor: 'hsla(240,50%,10%,0.6)', display: state?.player?.playStack?.overlay === 'none' ? 'none' : 'flex'}}>
                 <OverlayContent state={state} dispatch={dispatch} sendSocketData={sendSocketData} logout={logout} />
             </div>
@@ -145,7 +162,7 @@ export default function MainView() {
                     </div>
 
                     <form style={{display: 'flex', width: '100%'}} onSubmit={sendChat}>
-                        <input type='text' ref={chatRef} disabled={state?.player?.name == null} style={{display: 'flex', width: 'calc(100% - 50px)'}} value={chatMessage} onChange={e => setChatMessage(e.target.value)} placeholder={state?.player?.name == null ? `You've forgotten your voice.` : `Hello, World`} />
+                        <input type='text' ref={chatRef} disabled={state?.player?.name == null || state?.player?.chatventure != null} style={{display: 'flex', width: 'calc(100% - 50px)'}} value={chatMessage} onChange={e => setChatMessage(e.target.value)} placeholder={state?.player?.name == null ? `You've forgotten your voice.` : `Hello, World`} />
                         <button disabled={state?.player?.name == null} style={{width: '50px'}} onClick={sendChat}>{'>'}</button>
                     </form>
                 
@@ -163,14 +180,147 @@ export default function MainView() {
 
 
 
-// const TownshipOverlay = ({ overlayMode, dispatch, sendSocketData }) => {
 
-//     return (
-//         <div style={{position: 'fixed', top: '0', left: '0', width: '100vw', height: '100%', backgroundColor: 'hsla(240,20%,10%,0.5)'}}>
 
-//         </div>
-//     )
-// }
+function ChatventureContent({state, dispatch, sendSocketData, logout}) {
+    const [chatventureChat, setChatventureChat] = useState('');
+    const chatventureMessageEndRef = useRef(null);
+    
+
+    function handleChatventureOptionSelection(chatventureOption) {
+        // console.log(`Booped ${chatventureOption.echo} to try to request ${chatventureOption.onSelect}`)
+        return sendSocketData({chatventureOption}, 'select_chatventure_option');
+        // return alert(`You have chosen to ${chatventureOption.echo}, which on selection should request: ${chatventureOption.onSelect}`);
+    }
+
+    function handleMenuSelection(menuItemObj) {
+        return sendSocketData(menuItemObj, 'select_chatventure_menu_item');
+    }
+
+    function sendChatventureChat(e) {
+        e.preventDefault();
+        sendSocketData({type: 'chat', echo: chatventureChat}, 'chatventure_action');
+        return setChatventureChat('');
+    }
+    /*
+        NOTE: should also 'cap' the display of the chatventure history, as for normal township chats
+
+
+
+        CURRENT CHATVENTURE_EVENT MODEL
+        const chatventureEvent = {
+            echo: chatventureActionObj.echo,
+            type: chatventureActionObj.type,
+            timestamp: new Date(),
+            agent: thisPlayer.name,
+            target: null,
+            icon: thisPlayer.icon,
+            voice: thisPlayer.voice
+        };
+
+        class Chatventure {
+            constructor(creator, location) {
+                this.id = creator != null ? generateRandomID(creator.name) : generateRandomID('chv');
+                this.type = 'chill';
+                this.creator = creator.name;
+                this.players = {};
+                this.players[creator.name] = creator;
+                this.mobs = {};
+                if (creator.party != null) {
+                    Object.keys(creator.party).forEach(entityID => {
+                        if (creator.party[entityID].entityType === 'player') this.players[entityID] = creator.party[entityID];
+                        if (creator.party[entityID].entityType === 'npc') this.mobs[entityID] = creator.party[entityID];
+                        if (creator.party[entityID].entityType === 'mob') this.mobs[entityID] = creator.party[entityID];
+                    });
+                }
+                this.joinLimit = 100;
+                this.joinRules = {};
+                this.events = {};
+                this.mode = 'chill';
+                this.options = {};
+                this.staging = {};
+                this.location = location || {gps: `Zenithica`, atMap: `townMap`, struct: `nexus`, area: null};
+                this.history = [];
+            }
+        }
+
+
+        so it makes sense to map down PLAYERS and MOBS, right? At least that.
+        ... man, how to figure out PARTY/GROUP stuff. May as well think about that now.
+
+        
+    */
+// !MHR
+    useEffect(() => {
+        // console.log(`state.player has changed, let's look at the chatventure history while we're here: `, state?.player?.chatventure?.history)
+        // console.log(`state.player has changed`);
+    }, [state.player]);
+
+    useEffect(() => {
+        // console.log(`New chatventure event received!`);
+        chatventureMessageEndRef.current.scrollIntoView();
+    }, [state?.player?.chatventure?.history]);
+
+    // below we have the 'chill' mode enabled... but what of OTHER MODES? let's consider COMBAT! woo!... overlay within an overlay, noice
+    if (state?.player?.playStack?.chatventure != null) return (
+        <div style={{backgroundColor: 'white', padding: '1rem', width: 'calc(300px + 60vw)', maxWidth: '95vw', minHeight: '90vh', flexDirection: 'column'}}>
+
+            {/* MENU OVERLAY, PROBABLY */}
+            <div style={{display: state?.player?.playStack?.mode !== 'chill' ? 'flex' : 'none', justifyContent: 'center', alignItems: 'center', position: 'absolute', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'hsla(240,10%,10%,0.6)', zIndex: '11'}}>
+                
+                <div style={{backgroundColor: 'white', width: 'calc(300px + 60vw)', maxWidth: '95vw', height: '80vh', flexDirection: 'column', alignItems: 'center'}}>
+                    {state.player.playStack.mode === 'menu' && (
+                    <div>
+                        <div>{state?.player?.playStack?.menu?.prompt}</div>
+                        <div style={{flexDirection: 'column'}}>
+                            {state?.player?.playStack?.menu?.menuItems?.map((menuItemObj, index) => (
+                                <button onClick={() => handleMenuSelection(menuItemObj)} key={index}>{menuItemObj.echo}</button>
+                            ))}
+                        </div>
+                    </div>
+                    )}
+                    {state.player.playStack.mode === 'battle' && (
+                        <div>
+                            OSHIZ A BATTLE IS HAPPENING BRACE YOUR BUTT AND GIRD YO LOINS
+                        </div>
+                    )}
+
+                </div>
+            </div>
+
+            <div style={{width: '100%'}}>[ You Are Here - Wherever This Is ]</div>
+            <div style={{width: '100%'}}>{state?.player?.chatventure?.staging?.description}</div>
+
+            <div style={{width: '100%'}}>
+                {/* CHATVENTURING OPTIONS */}
+                {Object.keys(state?.player?.chatventure?.options).map((chatventureOptionKey, index) => {
+                    const thisOption = state?.player?.chatventure?.options[chatventureOptionKey];
+                    // console.log(`thisOption looks like this: `, thisOption);
+                    const { echo } = thisOption || 'NULLY';
+                    return <button key={index} onClick={() => handleChatventureOptionSelection(thisOption)} style={{marginRight: '1rem'}}>{echo}</button>
+            })}
+            </div>
+
+            <div style={{width: '100%'}}>
+                {/* GROUPS? PLAYERS? MOBS? MOB GROUPS??? FACTIONS?!?!? I don't even know, good sirs */}
+            </div>
+
+            <div style={{width: '100%', border: '1px solid #0AF', height: '70vh', padding: '0 0.75rem', flexDirection: 'column', overflow: 'scroll'}}>
+                {state?.player?.chatventure?.history?.map((historyEvent, index) => (
+                    <ChatEvent key={index} chatEventObject={historyEvent} />
+                ))}
+                <div ref={chatventureMessageEndRef} />
+            </div>
+            <form style={{display: 'flex', width: '100%'}} onSubmit={sendChatventureChat}>
+                <input type='text' autoFocus={true} style={{display: 'flex', width: 'calc(100% - 50px)'}} value={chatventureChat} onChange={e => setChatventureChat(e.target.value)} placeholder={`Hello Smaller World`} />
+                <button style={{width: '50px'}} onClick={sendChatventureChat}>{'>'}</button>
+            </form>            
+            
+        </div>
+    )
+
+    return <div ref={chatventureMessageEndRef}></div>
+}
 
 
 
@@ -379,7 +529,7 @@ function OverlayContent({state, dispatch, sendSocketData, logout}) {
                         </div>
     
                         <div>Structs Tho</div>
-                        {/* !MHR */}
+                        
                         <div style={{flexDirection: 'column', alignItems: 'center', width: '100%'}}>
                             <div>Your STRUCTS, sir or madam!</div>
                             {/* {Object.keys(state?.locationData?.structs)?.map((structID, index) => (

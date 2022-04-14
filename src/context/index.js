@@ -12,6 +12,7 @@ export const actions = {
     DISMISS_OVERLAY: 'dismiss_overlay',
     UPDATE_LOCATION: 'update_location',
     NEW_MESSAGE: 'new_message',
+    NEW_CHATVENTURE_EVENT: 'new_chatventure_event',
     LOAD_PLAYER: 'load_player',
     LOGOUT: 'logout',
     VISIT_NEXUS: 'visit_nexus',
@@ -48,8 +49,16 @@ export const Reducer = (state, action) => {
             if (action.payload.origin.toLowerCase() !== state.player.playStack.gps.toLowerCase()) return state;
             return {...state, locationData: {...state.locationData, history: [...state.locationData.history, action.payload]}};
         }
+        case actions.NEW_CHATVENTURE_EVENT: {
+            let newState = {...state};
+            if (state?.player?.chatventure == null) return state;
+            // newState.player.chatventure.history.push(action.payload);
+            newState.player.chatventure.history = [...newState.player.chatventure.history, action.payload];
+            return {...newState};
+        }
         case actions.LOAD_PLAYER: {
-            return {...state, player: {...state.player, ...action.payload}};
+            return {...state, player: action.payload};
+            // return {...state, player: {...state.player, ...action.payload}};
         }
         case actions.LOGOUT: {
             return {...initialState};
@@ -95,19 +104,14 @@ const initialState = {
             target: null, // playStack.target can be... a whole LOT of things potentially, currently :P ... when in use, probably an object {type: 'button/npc', id: ''}
             chatventure: null, // either null or an id; if null, we'll 'safely' assume we're in chat mode
             mode: '', // chill, battle, choose, trade, watch, etc. ... so we know what menu(s) to put up, and then we can get the data from player.chatventure's obj?
-            doing: 'none', // 'doing' might be redundant at this stage
+            doing: 'none', // 'doing' is beginning to take shape in the server, will hopefully update here as developments occur
             at: 'none', // this allows us to specify the 'struct' we're at, potentially useful information
             overlay: 'none',
-            data: {}
+            data: {},
+            menu: null,
+            battle: null
         }
     }, 
-    // playStack: {
-    //     gps: 'Zenithica', // phasing out root-level playstack in favor of player-depth playstack
-    //     doing: 'none',
-    //     at: 'none',
-    //     overlay: 'none',
-    //     data: {}
-    // },
     locationData: {
         name: ``,
         nickname: ``,
