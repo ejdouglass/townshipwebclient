@@ -14,9 +14,15 @@ export default function App() {
 
 /*
 
-NOTE: while we haven't decided on a First Chatventure, we can wipe everything during dev, so build the fundamentals aggressively
-  - 'wake up' in Zenithica, and be led to create township afer a series of wacky events, including first battle @ husks?
-  - 'wake up' in your own township, and get back to Zenithica to learn more after a series of wacky events?
+The choose-your-own-adventure chatventure is still a rare and mythical beast. :P
+What we need to get done, as simply as possible:
+- can fight, gaining exp, loot, levels, etc. and effecting change (either by getting stuff for township/self, opening up new options, or changing worldMap area params)
+- can manage the township by allocating population, building structures, upgrading structures; setting privacy/visit rules
+- township ticks away, generating income, events, local worldMap changes
+- can do a few basic chatventures, such as patrolling, trading, exploring (DQT style upgrade ability chances for discovery), 
+
+
+
 
 QUICKSCRATCH
 -) new balance and focus: depending on your actions, and how recently they were taken, you will gain or lose balance/focus
@@ -45,12 +51,10 @@ x) should we add locationData: type to distinguish if we're in a chat vs chatven
   - this is in cases such as general store, where you have to be in the 'visit' of it before you can shop
   - in cases such as exploring, a new chatventure is created, so you can 'skip' the visit, so to speak
 
+-) LEVEL SCALING RECONSIDERATION: classLevel as "adventurer level," then match against levels of mobs? HRM... ok, yeah, I kinda like that :P
+  - requires some thought about scaling, as well as learning abilities from other classes, multi-classing, and/or class changing
 
-x) successfully 'visit' perimeter, creating a chatventure and doing proper io.to shoutouts
-x) set up the LEAVE option to... well, leave the chatventure, including dismantling the chatventure if it's got nobody left in it, cuz right now? TRAPPED FOREVER~
 
-x) enable sending chats to chatventure
-x) retrieve chatventure history on login/connection so refresh persists history data and pops it in
 2) test playStack.doing OR mode for enabling combat concepts
   - start it out with just YOU FIND MONSTER(S), but you scout them, so you can FIGHT, KITE, or FLEE
   - for now FIGHT starts a battle, and FLEE just dismisses the possibility
@@ -59,22 +63,127 @@ x) retrieve chatventure history on login/connection so refresh persists history 
   - oh, before we wrap up, send to history ... BOB GOES ON PATROL, Y'ALL (and any other echo data we're interested in)
 
 
+
+
 3) start a PATROL (configure successfully from both perimeter AND struct menu) -- have a TEST BATTLE button always available for DUMMY
 4) figure out how to parse player/mob/party information within chatventure window (likely will involve having to add more info to the chatventure class)
-5) COMBAT! fight something! even if it doesnt know how to fight back yet! -- initially, just be able to HIT or PEW for testing and numbers
+5) COMBAT! fight something! even if it doesnt know how to fight back yet! -- initially, just be able to STRIKE or EVOKE for testing and numbers
+
+  SCRATCH FOR CURRENT COMBAT IMPLEMENTATION ON SERVER
+  - make sure the actionQueue is PROPERLY set up with an array of abilities :P
+
+
+    PLAN IT ALL OUT PRE-BUILD - REFACTORS & PREFACTORS
+    @combat
+    - eql is now to be 100
+    - eql dips upon ability use; standard eql cost is 20, as combo/queue caps at 5
+    - eql can be damaged by staggering attacks
+    - if you run out of eql required, your combo breaks, and you entered forced reset, might change actionIndex to something odd like 999 or -999
+    - the flow: new actions are pushed to actionQueue, actionIndex is -1 when at 'rest'
+    - actionIndex is 'index of action agent just performed' and acts as a record of the last action taken and where we are in the queue
+    - damage calc, let's try floor(sqrt) atkStat (now with skill?) * dmgMod * potency * chainMod VS eql-modded def stat
+    = LATEST: eh, no 'inherent' scaling from actionQueue, ONLY mods from previous moves
+    - spellcasting works a bit differently: vanilla casting of spells has a significant windup if that's the only action, buuuut
+      - various rituals, techniques, and actions can carry a spellCharge attribute, which defrays the cost of subsequent spell(s)
+    - some actions are flagged by default as, or can BECOME through previous actions, 'finishers,' which expend substantial EQL
+      - at minimum, all remaining EQL is spent
+      - can 'overspend' EQL
+      - forces stance reset (999/-999/whatever # we end up on)
+    - what happens upon INPUT? note that the WINDUP is 'part' of the technique, even if the windup is 0
+      - could we consider the move's COOLDOWN as part of the next move's WINDUP?
+
+
+    @leveling
+    - gain exp for using skills, spending flux, completing chatventures, etc.
+    - Ingress 'main level' it a bit... add in requirements that can be checked; first 10 levels exp-only is fine
+    - exp is a spendable amount, but .history.expGained -should- record all expGain for players for leveling purposes
+    - AHA! ok, so STATS scale with currentClass(es), simply according to level and without caring about the 'class level' too much
+    - classes get a set number of abilities per, with predictable arcs to level them up
+      - classes gain exp by mastering their abilities
+      - higher class level unlocks bonus stat mods and possible purchasing of higher tier abilities
+      - 
+
+
+    @abilities
+    - learn by spending exp (and possibly other requirements... wallet, flux, items, what have you) to unlock
+    - after that, they gain exp by use (1 per use), and can be further trained at certain buildings/trainers
+    - level requirement scaling as well as skill level granted based on tier, but can have skills go up based on type, action, etc. (martial up, wind up, etc.)
+    - may refactor to universal use() and windup() fxns, which should be able to use the user + their skill obj + their actionQueue to figure everything out
+
+
+    @materials
+    .. refactor:
+    - metals, woods, fabrics, leathers, etc. are their own objects that can be filtered for 'tier,' which is the primary determinant of quality
+    - aside from tier, slightly different stats/mods/special effect potentials to help differentiate gear made from them for different purposes
+    @equipment
+    - simplify a bit, with discrete levels of scaling (S-D, 0.25 intervals starting at D-) for stats to contribute to ATK/MAG/DEF/RES
+    - each blueprint can have a material requirement for filtering purposes
+    - equipment tier/level? hm... but plz, @ kiss
+
+
+    @township
+    .. let's try:
+    - universal 10m pulses (followed by saving), and all logic for events/actions/etc. is sorted at that point, resulting in 6 pulses/hour
+    - player's LEVEL determines potential by default (how many buildings, upgrade possibilities, etc.)
+      - level 10 first arbitrary milestone for upgrades? or could it vary per building? ... per building
+    - scale off of some predetermined starting value
+    - struct upgrades can be dynamic eventually, but for now should be static, a linear series of upgrades
+    - most structs can (should?) have population of township assigned to them, and may have 'npc slots' for special functionality/boosts
+      - 0 is always the absolute minimum, and each struct also has a popMax
+      - as upgrading occurs, there might be some 'maintenance' minimum to maintain to keep it from falling into disrepair (HP?)
+      - some internal logic for handling resource extraction, including access and population, and including any support structure bonuses
+    - might add struct HP value, representing overall state of repair or disrepair
+    - some structs can exist just to help build population
+    - can lay out further struct development details 
+    - possibly use placeStruct() global fxn to place structs! :P
+    - population requires food and water income, at minimum... build a well, and/or allocate some hunters/gatherers/build some farms
+    @worldMap
+    .. gen, changes, interaction with township
+    - note that worldMap for each township can and will change for various reasons
+    - when you 'outgrow' an area, can become starbound to the next possibilities, and maybe land somewhere wacky like a desert (black iron!)
+
+
+
+
+
+    breaks vs 'core' stats, which influence derived stats, but again require a calcStats in there somewhere
+      - which also requires some understanding of stats as listed being 'core'/innate
+      - and bonus stats become effectiveStats? hmmmm
+
+    also! consider the situation where a player leaves and the entity/others/effects attempt to hit them... never assume the target is in range or visible
+      - just a quick note to self to check for that... can have a separate "you there?" fxn that's called in combat checks
+    
+    QUERY: what mods, status effects, etc. do we want on release? ... probably almost none, realistically, for the tech demo concept
+    QUERY: what 'skills' do we want on release? ... what influence 'should' they have, and on what?
+
+
 6) combat resolution -- win (with some loot, as least wallet+) or flee (with any basic considerations there)
 7) give things some TEETH, add combat resolution scenario -- lose (likewise with basic considerations)
 
 o) SHOPPING!
-  - will probably require some thought into ware generation, ideally with a little bit of RNG and vibe checking
+  - will probably require some thought into ware generation, ideally with a little bit of RNG, owner soul checking, and township/struct resources
+  - having an NPC 'take over' a struct or become otherwise 'attached' to it can be helpful, depending... but the mechanism for that isn't yet defined
+  - ultimately, any 'shopping' / trading mode will just require a stock of wares to be provided, either by a struct or generated with an npc/event
+
+o) TOWNSHIP LOGISTICS
+  - population allocation
+  - extra starter buildings: tradehall tent (mining/logging/etc.)
+  - refactor worldMap to INCLUDE current township
+  - use worldMap data to determine resource availability
+  - define resource income, 
+  - multiplayer: go to a township, "some for me, some for you" if you go on gathering excursions... everybody wins! ... unless you're terrible :P
+
 
 O) skim quickscratch, add more interactions, building up to two big ones: patrol and trade
-O) 
+O) we're "ready" when we have basic chatventures, basic leveling, basic township management (interaction, building, surveying), and the ability to chat and pop over with others
+
+IDEA: having little 'state' of agents to show stuff like 'chanting...' 'casting!' and such, at-a-glance what-they're-doing
 
 
 
 Fiddlesticks
-[x] Add support for more equipment blueprints, as well as mods and materials to construct them with
+[_] create ability menu(s) - chill, battle, trade, ??? (or just a 'universal' menu that filters based on context?)
+[_] upon player creation, an echo throughout ZENITHICA, woo
 [_] Refactor/refine township.worldMap to INCLUDE ref to township, as well as other points of interest, so we can grab 'weather' or any other relevant data
   - thinking about this for struct.visit() and other upcoming actions
 [_] Add 'location' to Chatventure() init, using the above as a more thorough template
