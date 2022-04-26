@@ -18,7 +18,9 @@ export const actions = {
     VISIT_NEXUS: 'visit_nexus',
     OPEN_TOWNSHIP_MENU: 'open_township_menu',
     OPEN_PLAYER_MENU: 'open_player_menu',
-    EQUIPMENT_UPDATE: 'equipment_update'
+    EQUIPMENT_UPDATE: 'equipment_update',
+    LOAD_TEST_MAP: 'load_test_map',
+    MOVE_ON_MAP: 'move_on_map'
 
 };
 
@@ -86,15 +88,31 @@ export const Reducer = (state, action) => {
             newState.player.stats = action.payload.stats;
             return {...newState};
         }
+        case actions.LOAD_TEST_MAP: {
+            if (action.payload.mapData == null) return {...state, mapData: null, mapCamera: null};
+            return {...state, mapData: action.payload.mapData, mapCamera: {x: action.payload.spawnPoint[0], y: action.payload.spawnPoint[1], width: 11, height: 11}};
+        }
+        case actions.MOVE_ON_MAP: {
+            let currentCoords = {x: state.mapCamera.x, y: state.mapCamera.y};
+            Object.keys(action.payload).forEach(coordKey => currentCoords[coordKey] = currentCoords[coordKey] + action.payload[coordKey]);
+            if (currentCoords.x < 0) currentCoords.x = state.mapData.length - 1;
+            if (currentCoords.y < 0) currentCoords.y = state.mapData.length - 1;
+            if (currentCoords.x === state.mapData.length) currentCoords.x = 0;
+            if (currentCoords.y === state.mapData.length) currentCoords.y = 0;
+            return {...state, mapCamera: {...state.mapCamera, ...currentCoords}};
+        }
+        
         
 
     }
 };
 
-// omitting outgoingPackage and incomingPackage for this style of build for now
-// nevermind, added serverResponse back in as a catch-all object for 'carte blanche' server response possibilities :P
+// mapCamera is currently just a test device, and will be replaced with various 'location information' in the near future
 const initialState = {
     name: undefined, // this'll be in player.name, so we can proooobably just phase this out altogether
+    map: null,
+    mapData: null,
+    mapCamera: null,
     player: {
         name: undefined,
         icon: {}, // put the Nobody face in here :P

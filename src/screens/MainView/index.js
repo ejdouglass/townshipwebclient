@@ -1,6 +1,7 @@
 import React, { useContext, useState, useEffect, useRef } from 'react';
 import { actions, Context, SocketContext } from '../../context';
 import { MyIcon, OverlayContentContainer, VocalSpan } from '../../styled';
+import tilemap from '../../assets/tilemap0.jpg';
 
 export default function MainView() {
     const socket = useContext(SocketContext);
@@ -46,10 +47,45 @@ export default function MainView() {
         return dispatch({type: actions.VISIT_NEXUS});
     }
 
+    function requestAMap() {
+        return sendSocketData({mapRequest: true}, 'request_a_map');
+    }
+
+    function moveCharacter(direction) {
+        // eventually the socket will be involved, but for now...
+        return dispatch({type: actions.MOVE_ON_MAP, payload: direction});
+    }
+
     function visitTownship(name) {
         console.log(`Requesting a visit to township: ${name}`);
         return sendSocketData({name: name}, 'request_township_visit');
     }
+
+    function handleKeyInput(e) {
+        if (state.mapCamera == null) return;
+        // console.log(e.key);
+        switch (e.key) {
+            case 'w':
+            case 'ArrowUp':
+                return moveCharacter({y: -1});
+            case 'd':
+            case 'ArrowRight':
+                return moveCharacter({x: 1});
+            case 's':
+            case 'ArrowDown':
+                return moveCharacter({y: 1});
+            case 'a':
+            case 'ArrowLeft':
+                return moveCharacter({x: -1});
+            default: return;
+        }
+    }
+
+    useEffect(() => {
+        window.addEventListener('keydown', handleKeyInput);
+
+        return () => window.removeEventListener('keydown', handleKeyInput);
+    }, [handleKeyInput]);
 
     useEffect(() => {
 
@@ -101,6 +137,10 @@ export default function MainView() {
             localStorage.setItem('CTJWT', initialCreationObj.token);
             return dispatch({type: actions.LOAD_PLAYER, payload: initialCreationObj.playerData});
         });
+
+        socket.on('new_play_map', dasMap => {
+            return dispatch({type: actions.LOAD_TEST_MAP, payload: dasMap});
+        });
         
 
     }, [socket]);
@@ -117,8 +157,97 @@ export default function MainView() {
         if (state?.player?.chatventure == null) chatRef.current.focus();
     }, [state?.player?.chatventure])
 
+    useEffect(() => {
+        if (state.mapData != null) {
+            // console.log(`Man I should do something with this sweet, sweet mapData!`);
+            let canvas = document.getElementById('worldmap');
+            let ctx = canvas.getContext('2d');
+            let mapWidth = state.mapData[0].length;
+            let tileSize = Math.floor(550 / 11);
+
+
+            // 16px at a time... probably
+            const tileRef = {
+                forest: 0,
+                wetland: 16,
+                flatland: 32,
+                ocean: 48,
+                desert: 64,
+                freshwater: 80,
+                bumpy: 96 
+            }
+
+            const tilemapIMG = new Image();
+            tilemapIMG.src = tilemap;
+
+            // ctx.drawImage(tilemapIMG, 0, 0);
+
+            // this is ZA WARUDO, which is fantastic, but let's take a stroll!
+            // for (let y = 0; y < mapWidth; y++) {
+            //     for (let x = 0; x < mapWidth; x++) {
+            //         ctx.drawImage(tilemapIMG, tileRef[state.mapData[y][x]], 0, 16, 16, y * tileSize, x * tileSize, tileSize, tileSize);
+            //     }
+            // }
+
+            // ok, 'sort of' works, except we got some oddities
+  
+            console.log(`Let's draw around our character, who is currently at space ${state.mapCamera.x},${state.mapCamera.y}, which is ${state.mapData[state.mapCamera.x][state.mapCamera.y]}!`);
+            for (let y = 0; y < 11; y++) {
+                for (let x = 0; x < 11; x++) {
+                    // HERE: extra spot-inference logic for the coming x and y, rerouting them across the map if necessary
+                    let xToDraw = state.mapCamera.x - Math.floor(state.mapCamera.width / 2) + x;
+                    if (xToDraw < 0) xToDraw = mapWidth + xToDraw;
+                    if (xToDraw > mapWidth - 1) xToDraw = xToDraw - mapWidth;
+                    let yToDraw = state.mapCamera.y - Math.floor(state.mapCamera.width / 2) + y;
+                    if (yToDraw < 0) yToDraw = mapWidth + yToDraw;
+                    if (yToDraw > mapWidth - 1) yToDraw = yToDraw - mapWidth;
+                    ctx.drawImage(tilemapIMG, tileRef[state.mapData[xToDraw][yToDraw]], 0, 15, 15, x * tileSize, y * tileSize, tileSize, tileSize);
+                }
+            }
+
+            // all this aside, just realized we're not even tracking our actual coords, just the middle of the slice of our current view, whoops :P
+            let yTop = tileSize * 5;
+            let yBottom = tileSize * 6;
+            let xMiddle = tileSize * 5.5;
+            let xRight = tileSize * 6;
+            let xLeft = tileSize * 5;
+            ctx.fillStyle = '#0AF';
+            ctx.strokeColor = 'black';
+            ctx.beginPath();
+            ctx.moveTo(xMiddle, yTop);
+            ctx.lineTo(xRight, yBottom);
+            ctx.lineTo(xLeft, yBottom);
+            
+            ctx.fill();
+        }
+        console.log(`The camera has changed.`)
+    }, [state?.mapCamera]);
+
+
     return (
+        
         <div style={{padding: '1rem', width: '100vw', minHeight: '100vh', justifyContent: 'flex-start', alignItems: 'center', flexDirection: 'column'}}>
+
+            <img src={tilemap} id='myTiles' width='112' height='16' style={{height: '0', width: '0', visibility: 'hidden'}} />
+            <div style={{position: 'fixed', width: '100vw', top: '0', left: '0', justifyContent: 'center', alignItems: 'center', height: '100vh', zIndex: '8', backgroundColor: 'hsla(240,50%,10%,0.6)', display: state?.mapData == null ? 'none' : 'flex'}}>
+                <button onClick={() => dispatch({type: actions.LOAD_TEST_MAP})} style={{position: 'absolute', top: '0.25rem', left: '0.25rem'}}>X</button>
+                
+                <div style={{position: 'absolute', bottom: '1rem', right: '1rem'}}>
+                    <div id='leftbuttoncontainer' style={{alignItems: 'center'}}>
+                        <button onClick={() => moveCharacter({x: -1})} style={{height: '50%', marginRight: '0.5rem'}}>LEFT</button>
+                    </div>
+                    <div id='upanddownbuttoncontainer' style={{flexDirection: 'column'}}>
+                        <button onClick={() => moveCharacter({y: -1})} style={{marginBottom: '0.5rem'}}>UP</button>
+                        <button onClick={() => moveCharacter({y: 1})}>DOWN</button>
+                    </div>
+                    <div id='rightbuttoncontainer' style={{alignItems: 'center'}}>
+                        <button onClick={() => moveCharacter({x: 1})} style={{height: '50%', marginLeft: '0.5rem'}}>RIGHT</button>
+                    </div>
+                </div>
+                {/* TEMPORARY HOME FOR MAP-CHECKING! Let's drawr the map... in a function maybe? */}
+                <canvas id="worldmap" width='550px' height='550px'></canvas>
+            </div>
+
 
 
             <div style={{position: 'fixed', width: '100vw', top: '0', left: '0', justifyContent: 'center', alignItems: 'center', height: '100vh', zIndex: '8', backgroundColor: 'hsla(240,50%,10%,0.6)', display: state?.player?.playStack?.chatventure == null ? 'none' : 'flex'}}>
@@ -135,8 +264,9 @@ export default function MainView() {
                 ) : (
                     <button onClick={() => dispatch({type: actions.OPEN_PLAYER_MENU})} style={{height: '100%', justifyContent: 'center', alignItems: 'center'}}>{state?.player?.name || `Who am I...?`}</button>
                 )}
-                <button onClick={() => dispatch({type: actions.OPEN_TOWNSHIP_MENU})} style={{height: '100%', justifyContent: 'center', marginLeft: '0.75rem', alignItems: 'center'}}>{state?.locationData?.nickname}</button>
+                <button onClick={() => dispatch({type: actions.OPEN_TOWNSHIP_MENU})} style={{height: '100%', justifyContent: 'center', marginLeft: '0.75rem', alignItems: 'center'}}>{state?.locationData?.nickname || 'Zenithica'}</button>
                 <button onClick={visitNexus} style={{display: state?.player?.name == null ? 'none' : 'flex', marginLeft: '0.75rem', height: '100%'}}>NEXUS</button>
+                <button onClick={requestAMap} style={{display: state?.player?.name == null ? 'none' : 'flex', marginLeft: '0.75rem', height: '100%'}}>GIMME MAP</button>
             </div>
 
             {state?.player?.playStack.gps === 'nexus' ? (
@@ -155,7 +285,7 @@ export default function MainView() {
                     <div style={{width: '100%', flexDirection: 'column', border: '2px solid #0AF', height: '70vh', overflow: 'scroll'}}>
                         {state?.locationData?.history.slice(state?.locationData?.history?.length - 21, state?.locationData?.history?.length).map((historyObj, index) => (
                             <ChatEvent key={index} chatEventObject={historyObj} />
-                            // <div key={index} style={{width: '100%', padding: '1rem', margin: '0.5rem 0', border: '1px solid hsl(240,20%,90%)', borderRadius: '0.5rem'}}>{historyObj.icon != null && <CharacterIcon size={'50px'} iconSettings={historyObj.icon}/>}<VocalSpan voice={historyObj.voice}>{historyObj.echo}</VocalSpan></div>
+                            
                         ))}
                         <div ref={messageEndRef} />
                         
@@ -446,7 +576,7 @@ function OverlayContent({state, dispatch, sendSocketData, logout}) {
 
 
 
-                    <div>{state?.player?.name}: {state?.player?.currentClass.toUpperCase()}</div>
+                    <div>{state?.player?.name}: {state?.player?.currentClass?.main?.toUpperCase()}</div>
 
                     <div style={{alignItems: 'center', justifyContent: 'center', padding: '1rem', textAlign: 'center'}}>STATS! Which we should ABSOLUTELY do manually in the near future.</div>
                     <div style={{gap: '1rem', flexWrap: 'wrap', padding: '1rem', alignItems: 'center', justifyContent: 'center'}}>
@@ -464,32 +594,26 @@ function OverlayContent({state, dispatch, sendSocketData, logout}) {
                         <div style={{width: '100%', padding: '0.75rem'}}>EQUIPMENT</div>
                         <button onClick={() => openEquipmentMenu('rightHand')} style={{justifyContent: 'flex-start', width: '100%', flexDirection: 'row', borderBottom: '1px solid #CCC', alignItems: 'center'}}>
                             <div style={{justifyContent: 'flex-end', width: '120px', paddingRight: '0.5rem'}}>R.HAND</div>
-                            <div><Icon size={'50px'} icon={state?.player?.equipment?.rightHand?.icon || {}} /></div>
                             <div style={{paddingLeft: '0.5rem'}}>{state?.player?.equipment?.rightHand?.name || `(nothing)`}</div>
                         </button>
                         <button onClick={() => openEquipmentMenu('leftHand')} style={{justifyContent: 'flex-start', width: '100%', flexDirection: 'row', borderBottom: '1px solid #CCC', alignItems: 'center'}}>
                             <div style={{justifyContent: 'flex-end', width: '120px', paddingRight: '0.5rem'}}>L.HAND</div>
-                            <div><Icon size={'50px'} icon={state?.player?.equipment?.leftHand?.icon || {}} /></div>
                             <div style={{paddingLeft: '0.5rem'}}>{state?.player?.equipment?.leftHand?.name || `(nothing)`}</div>
                         </button>
                         <button onClick={() => openEquipmentMenu('head')} style={{justifyContent: 'flex-start', width: '100%', flexDirection: 'row', borderBottom: '1px solid #CCC', alignItems: 'center'}}>
                             <div style={{justifyContent: 'flex-end', width: '120px', paddingRight: '0.5rem'}}>HEAD</div>
-                            <div><Icon size={'50px'} icon={state?.player?.equipment?.head?.icon || {}} /></div>
                             <div style={{paddingLeft: '0.5rem'}}>{state?.player?.equipment?.head?.name || `(nothing)`}</div>
                         </button>
                         <button onClick={() => openEquipmentMenu('body')} style={{justifyContent: 'flex-start', width: '100%', flexDirection: 'row', borderBottom: '1px solid #CCC', alignItems: 'center'}}>
                             <div style={{justifyContent: 'flex-end', width: '120px', paddingRight: '0.5rem'}}>BODY</div>
-                            <div><Icon size={'50px'} icon={state?.player?.equipment?.body?.icon || {}} /></div>
                             <div style={{paddingLeft: '0.5rem'}}>{state?.player?.equipment?.body?.name || `(nothing)`}</div>
                         </button>
                         <button onClick={() => openEquipmentMenu('accessory')} style={{justifyContent: 'flex-start', width: '100%', flexDirection: 'row', borderBottom: '1px solid #CCC', alignItems: 'center'}}>
                             <div style={{justifyContent: 'flex-end', width: '120px', paddingRight: '0.5rem'}}>ACCESSORY</div>
-                            <div><Icon size={'50px'} icon={state?.player?.equipment?.accessory?.icon || {}} /></div>
                             <div style={{paddingLeft: '0.5rem'}}>{state?.player?.equipment?.accessory?.name || `(nothing)`}</div>
                         </button>
                         <button onClick={() => openEquipmentMenu('trinket')} style={{justifyContent: 'flex-start', width: '100%', flexDirection: 'row', alignItems: 'center'}}>
                             <div style={{justifyContent: 'flex-end', width: '120px', paddingRight: '0.5rem'}}>TRINKET</div>
-                            <div><Icon size={'50px'} icon={state?.player?.equipment?.trinket?.icon || {}} /></div>
                             <div style={{paddingLeft: '0.5rem'}}>{state?.player?.equipment?.trinket?.name || `(nothing)`}</div>
                         </button>
                     </div>
@@ -541,7 +665,7 @@ function OverlayContent({state, dispatch, sendSocketData, logout}) {
                                     let thisStruct = state.locationData.structs[structID];
                                     return (
                                         <div key={index} style={{display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'flex-start', backgroundColor: '#0AF', color: 'white', padding: '0.85rem', width: '500px', maxWidth: '80%', marginBottom: '0.75rem'}}>
-                                            <div style={{width: '100%', alignItems: 'center'}}><Icon icon={thisStruct.icon} size='50px' /> <div style={{marginLeft: '0.75rem'}}>{thisStruct.nickname}</div></div>
+                                            <div style={{width: '100%', alignItems: 'center'}}><div style={{marginLeft: '0.75rem'}}>{thisStruct.nickname}</div></div>
                                             <div style={{width: '100%', flexWrap: 'wrap', marginTop: '1rem'}}>
                                                 {Object.keys(thisStruct.interactions).map((interactionKey, index) => (
                                                     <button key={index} onClick={() => handleStructInteractionRequest(thisStruct, interactionKey)} style={{marginRight: '0.75rem', backgroundColor: 'gray'}}>{interactionKey.toUpperCase()}</button>
@@ -600,9 +724,6 @@ const ChatEvent = ({ chatEventObject }) => {
     return (
         <div style={{width: '100%', padding: '1rem', margin: '0.5rem 0', height: 'auto', borderTop: '1px solid hsl(240,20%,90%)', display: 'block'}}>
             <div style={{display: 'flex'}}>
-                <div style={{width: '50px', height: '50px'}}>
-                    {chatEventObject.icon != null && <CharacterIcon size={'50px'} iconSettings={chatEventObject.icon}/>}
-                </div>
                 <div style={{width: 'calc(100% - 50px)', minHeight: '50px', height: '100%', paddingLeft: '0.5rem'}}>
                     {chatEventObject.agent != null && `${chatEventObject.agent.toUpperCase()}: `} 
                     <VocalSpan style={{marginLeft: '0.5rem'}} voice={chatEventObject.voice}> {chatEventObject.echo}</VocalSpan>
@@ -678,7 +799,7 @@ const CharacterCreationComponent = ({ dispatch, sendSocketData }) => {
                 <button style={{margin: '0.5rem', width: '100px'}} onClick={() => setSelectedClass('sympath')}>Sympath</button>
                 <button style={{margin: '0.5rem', width: '100px'}} onClick={() => setSelectedClass('sorcerer')}>Sorcerer</button>
             </div>
-            <button disabled={selectedClass === 'none'} onClick={() => wrappingUp > 0 ? setCreationPage(4) : setCreationPage(creationPage + 1)}>{selectedClass === 'none' ? `...` : `${classDescriptions[selectedClass]}`}</button>
+            <button disabled={selectedClass === 'none'} onClick={() => wrappingUp > 0 ? setCreationPage(3) : setCreationPage(creationPage + 1)}>{selectedClass === 'none' ? `...` : `${classDescriptions[selectedClass]}`}</button>
             
         </div>),
 
@@ -700,19 +821,7 @@ const CharacterCreationComponent = ({ dispatch, sendSocketData }) => {
                 <div style={{width: '100%', justifyContent: 'center', alignItems: 'center'}}><input type='range' min='4' max='20' value={statSpread.wisdom} onChange={e => adjustStat('wisdom', e.target.value)} /> </div>
                 
             </div>
-            <button onClick={() => wrappingUp > 0 ? setCreationPage(4) : setCreationPage(creationPage + 1)}>That's me.</button>
-        </div>),
-
-        (<div style={{width: '100%', flexDirection: 'column', alignItems: 'center'}}>
-            <div style={{width: '100%', marginBottom: '1rem', textAlign: 'center', justifyContent: 'center'}}>The voice in your head forms the rough shape of a face in your mind and instructs you, "Sculpt this to fit your image of Self in your mind's eye."</div>
-            <div style={{margin: '2rem 0', width: 'calc(100px + 5vmin)', height: 'calc(100px + 5vmin)'}}>
-                <CharacterIcon iconSettings={icon} />
-            </div>
-            <div style={{width: '100%', flexDirection: 'column'}}>
-                <div style={{position: 'relative', top: '0.75rem'}}>Eye Color</div>
-                <input type='range' min='0' max='2' value={icon.eyeColor} onChange={e => setIcon({...icon, eyeColor: e.target.value})} />
-            </div>
-            <button onClick={() => wrappingUp > 0 ? setCreationPage(4) : setCreationPage(creationPage + 1)}>That looks... good?</button>
+            <button onClick={() => wrappingUp > 0 ? setCreationPage(3) : setCreationPage(creationPage + 1)}>That's me.</button>
         </div>),
 
         (<div style={{width: '100%', flexDirection: 'column', alignItems: 'center'}}>
@@ -730,19 +839,19 @@ const CharacterCreationComponent = ({ dispatch, sendSocketData }) => {
                 <input type='range' value={voice.size} min='0.7' max='0.9' step='0.1' onChange={e => setVoice({...voice, size: e.target.value})} />
             </div>
 
-            <button disabled={playerName.length < 5 || playerName.length > 10} style={{boxSizing: 'border-box', fontFamily: voice.font, letterSpacing: `${voice.spacing}px`, fontWeight: `${voice.weight}`, fontSize: `calc(${voice.size}rem + 0.3vw)`}} onClick={() => wrappingUp > 0 ? setCreationPage(4) : setCreationPage(creationPage + 1)}>{(playerName.length >= 5 && playerName.length <= 10) ? `I am ${playerName}.` : `...`}</button>
+            <button disabled={playerName.length < 5 || playerName.length > 10} style={{boxSizing: 'border-box', fontFamily: voice.font, letterSpacing: `${voice.spacing}px`, fontWeight: `${voice.weight}`, fontSize: `calc(${voice.size}rem + 0.3vw)`}} onClick={() => wrappingUp > 0 ? setCreationPage(3) : setCreationPage(creationPage + 1)}>{(playerName.length >= 5 && playerName.length <= 10) ? `I am ${playerName}.` : `...`}</button>
         </div>),        
 
         (<div style={{width: '100%', flexDirection: 'column', alignItems: 'center'}}>
-            <div style={{width: '100%', marginBottom: '1rem', textAlign: 'center', justifyContent: 'center'}}>You realize the voice in your head is yours.</div>
-            <VocalSpan voice={voice}>"That's right... I am {playerName}."</VocalSpan>
+            <div style={{width: '100%', marginBottom: '1rem', textAlign: 'center', justifyContent: 'center'}}><VocalSpan voice={voice}>You realize the voice in your head is yours.</VocalSpan></div>
+            
 
             <div style={{flexDirection: 'column', flexWrap: 'wrap'}}>
+                <button style={{padding: '1rem', border: '1px solid gray', margin: '0.25rem'}} onClick={() => setCreationPage(2)}><VocalSpan voice={voice}>I am {playerName}.</VocalSpan></button>
                 <button style={{padding: '1rem', border: '1px solid gray', margin: '0.25rem'}} onClick={() => setCreationPage(0)}><VocalSpan voice={voice}>I am a {selectedClass.substring(0,1).toUpperCase()}{selectedClass.substring(1)}.</VocalSpan></button>
                 <button style={{padding: '1rem', border: '1px solid gray', margin: '0.25rem', display: 'flex', flexWrap: 'wrap'}} onClick={() => setCreationPage(1)}>{Object.keys(statSpread).map((stat, index) => (<div key={index} style={{margin: '0.5rem'}}>{stat.substring(0,3).toUpperCase()}: {statSpread[stat]}</div>))}</button>
                 <div style={{width: '100%', flexDirection: 'row'}}>
-                    <button style={{padding: '1rem', border: '1px solid gray', margin: '0.25rem', width: '100px', height: '100px'}} onClick={() => setCreationPage(2)}><CharacterIcon iconSettings={icon} /></button>
-                    <button style={{padding: '1rem', border: '1px solid gray', margin: '0.25rem', width: 'calc(100% - 100px)'}} onClick={() => setCreationPage(3)}><VocalSpan voice={voice}>Do re me fa</VocalSpan></button>
+                    
                 </div>
 
             </div>
