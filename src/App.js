@@ -510,28 +510,62 @@ REACH
 
 ATM:
 x make client button to request a new map, wait for it, receive it
-- canvas time: DRAW the full map into a png file? or nah? figure out whether we want 'full map drawn, chunk out pieces' or just have the canvas draw relevant bits as we go
-  - for small maps, having the whole thing drawn and then slicing out chunks sounds better to me
-  - then for 'non-permanent' overlays, like our walky guy, we just draw those on top
-- 'walk' around the map like a wacky hovering spirit
-- make some sprites, do it again!
-- add bounding logic (no more walking across the ocean)
-- tighten up world gen a bit
-- start a new character with their very own little world and try to implement the Civ Concept for gathering materials
-  - NOTE: best make sure they have access to wood and stone :P
+x canvas time: DRAW the full map into a png file? or nah? figure out whether we want 'full map drawn, chunk out pieces' or just have the canvas draw relevant bits as we go
+x 'walk' around the map like a wacky hovering spirit
+x make some sprites, do it again!
+x add bounding logic (no more walking across the ocean under default parameters)
+x tighten up world gen a bit: mini-snakes, landmass distancing, lake logic, river/road support, basic river gen
+- add world gen extras: mobfactions support (for both team-level and faction-level PVE!), random encounters, points of interest, rare treasures of some sort
+  - 'goody bag' that is generated on landmass init, proportionate to the number of total tiles for that landmass
+  - what kind of goodies? (varies per tile type, generally)... BRAINSTORM!
+
+
+- how to init mob encounters? per tile, or some other way? now's the time!
+  - a 'simpler' way would just to have a global/worldwide encounter table, just keeping mobLevel and threatLevel variables per tile as we go/interact
+  - so you're cruising around, checking encounter risk (maybe it accumulates over time and is 'spent' when you bonk into battle)
+  - mapData vs worldData; the player gets mapData, the server keeps track of (most or all of) worldData (which includes mobData)
+  - special structs can have their own special mobs, and/or we can spawn special encounters separately
+
+
+- add overlay1 support (COAL, foal), overlay2 stuff (town, township, etc.), overlay3 (player, other player-type entities)
+- start a new character with their very own little 'tutorial' world and try to implement the Civ Concept for gathering materials
+  - smallish world, bound growth from the center of the map, expansive sea on each side that's too far to see across (and no means to build boats)
+  - slap 'em down in a savanna and call it a day to begin with
+- refactor township(s) so we can exit the gate and then re-enter the township
+- add township struct view at the top
+- township management: allocate resource gathering, build structs, upgrade structs, assign npcs to structs
+- server stock: some system whereby resources are gathered under some ongoing means, KISS gently
+  - every 15m is probably fine for "check for events," and every 1h is probably fine for gathering resources, we'll start with that
+- 
+
 
 
 ... I've buried myself once more. Alas! Let's focus down. We've achieved our tech showcase when:
 [_] We can play Civ
- o- world gen, build & upgrade structs, assign npcs, get resources for all of above
- x- 
+ o- build & upgrade structs, assign npcs, get resources for all of above
+ x- world gen
 [_] We can play DQ
- o- make parties (npcs and/or players), go on chatventures, battle against mobs to win/lose, gain levels
+ o- make parties (npcs and/or players), go on chatventures, battle against mobs to win/lose, gain levels/trayzure
  x- 
 [_] We can pop over to friends' chatrooms and chat wildly
  o- 
  x- 
 
 There's lot of extra growth that's possible beyond that, but hey, room to grow is fun!
+
+
+Ok, real quick... it's best if we rejigger it so we create a new character and figure out township - world relationship
+NEXUS can hold the worldID, as well as coords within the world
+... world will have the township info present on said tile, and INTERACT mode for that can involve ENTERing the township/chatroom
+... chatroom is saved for regular towns, too? maybe? NPC towns? hmmmmmmm. I dunno.
+... but their other functionality would be pretty similar, a collection of structs in an area that can be interacted with.
+... when do we 'clean up' a world and dismantle it?
+... ok, so allWorlds: id: mapData: [[]], worldData: id: ref, souls: soulRef, soulRef
+... okiedoke one sec working on brandNewPlayer a bit, rejiggeirng how townships are structured
+
+need a way to signal we're in the MODE of walkin' aboot
+- chatventure sync
+
+township itself can hold information on stuff like tiles available to send to gather?
 
 */

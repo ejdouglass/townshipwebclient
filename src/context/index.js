@@ -20,7 +20,8 @@ export const actions = {
     OPEN_PLAYER_MENU: 'open_player_menu',
     EQUIPMENT_UPDATE: 'equipment_update',
     LOAD_TEST_MAP: 'load_test_map',
-    MOVE_ON_MAP: 'move_on_map'
+    MOVE_ON_MAP: 'move_on_map',
+    ADJUST_MAP_ZOOM: 'adjust_map_zoom'
 
 };
 
@@ -59,7 +60,7 @@ export const Reducer = (state, action) => {
             return {...newState};
         }
         case actions.LOAD_PLAYER: {
-            return {...state, player: action.payload};
+            return {...state, player: {...state.player, ...action.payload}};
             // return {...state, player: {...state.player, ...action.payload}};
         }
         case actions.LOGOUT: {
@@ -89,17 +90,32 @@ export const Reducer = (state, action) => {
             return {...newState};
         }
         case actions.LOAD_TEST_MAP: {
-            if (action.payload.mapData == null) return {...state, mapData: null, mapCamera: null};
-            return {...state, mapData: action.payload.mapData, mapCamera: {x: action.payload.spawnPoint[0], y: action.payload.spawnPoint[1], width: 11, height: 11}};
+            if (action?.payload?.mapData == null) return {...state, mapData: null, mapCamera: null};
+            return {...state, mapData: action.payload.mapData, mapCamera: {x: action.payload.spawnPoint[0], y: action.payload.spawnPoint[1], width: 21, height: 21}};
         }
         case actions.MOVE_ON_MAP: {
+            // add a check, no more ocean-walking!
+            if (state.mapData == null || state.mapCamera == null) return state;
             let currentCoords = {x: state.mapCamera.x, y: state.mapCamera.y};
             Object.keys(action.payload).forEach(coordKey => currentCoords[coordKey] = currentCoords[coordKey] + action.payload[coordKey]);
             if (currentCoords.x < 0) currentCoords.x = state.mapData.length - 1;
             if (currentCoords.y < 0) currentCoords.y = state.mapData.length - 1;
             if (currentCoords.x === state.mapData.length) currentCoords.x = 0;
             if (currentCoords.y === state.mapData.length) currentCoords.y = 0;
+            // console.log(`Square moving into is: `, state.mapData[currentCoords.x][[currentCoords.y]])
+            if (state.mapData[currentCoords.x][currentCoords.y].biome === 'ocean' || state.mapData[currentCoords.x][currentCoords.y].biomeType === 'freshwater' || state.mapData[currentCoords.x][currentCoords.y].biome === 'mountain') return state;
             return {...state, mapCamera: {...state.mapCamera, ...currentCoords}};
+        }
+        case actions.ADJUST_MAP_ZOOM: {
+            let widthTarget;
+            if (action.payload === 'walker') widthTarget = 21;
+            if (action.payload === 'world') widthTarget = state.mapData[0].length;
+            if (action.payload === '+') widthTarget = state.mapCamera.width - 10;
+            if (action.payload === '-') widthTarget = state.mapCamera.width + 10;
+            if (widthTarget > state.mapData[0].length) widthTarget = state.mapData[0].length;
+            if (widthTarget < 11) widthTarget = 11;
+            console.log(`Adjusting to new width target: ${widthTarget}`)
+            return {...state, mapCamera: {...state.mapCamera, width: widthTarget, height: widthTarget}};
         }
         
         

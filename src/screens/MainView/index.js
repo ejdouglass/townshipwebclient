@@ -1,7 +1,7 @@
 import React, { useContext, useState, useEffect, useRef } from 'react';
 import { actions, Context, SocketContext } from '../../context';
 import { MyIcon, OverlayContentContainer, VocalSpan } from '../../styled';
-import tilemap from '../../assets/tilemap0.jpg';
+import tilemap from '../../assets/climetiles.jpg';
 
 export default function MainView() {
     const socket = useContext(SocketContext);
@@ -31,7 +31,7 @@ export default function MainView() {
 
     function sendChat(e) {
         e.preventDefault();
-        if (state?.player?.name == null) return;
+        if (state?.player?.name == null) return setChatMessage(`(you attempt to speak, but you've forgotten how)`);
         const newChatAction = {
             echo: chatMessage,
             type: 'chat',
@@ -158,42 +158,57 @@ export default function MainView() {
     }, [state?.player?.chatventure])
 
     useEffect(() => {
-        if (state.mapData != null) {
+        let myWalkingGuy;
+        if (state?.mapData != null) {
             // console.log(`Man I should do something with this sweet, sweet mapData!`);
             let canvas = document.getElementById('worldmap');
             let ctx = canvas.getContext('2d');
-            let mapWidth = state.mapData[0].length;
-            let tileSize = Math.floor(550 / 11);
+            ctx.clearRect(0,0,550,550);
+            let mapWidth = state?.mapData[0].length;
+            let tileSize = Math.floor(550 / state.mapCamera.width);
 
 
             // 16px at a time... probably
+            // tileRef is essentially a proto-atlas
+            let atlasSourceSize = 16;
             const tileRef = {
                 forest: 0,
+                    jungle: 0,
+                    wood: atlasSourceSize * 1,
+                    taiga: atlasSourceSize * 2,
                 wetland: 16,
+                    swamp: atlasSourceSize * 3,
+                    marsh: atlasSourceSize * 4,
+                    bog: atlasSourceSize * 5,
                 flatland: 32,
-                ocean: 48,
-                desert: 64,
+                    savanna: atlasSourceSize * 6,
+                    plain: atlasSourceSize * 7,
+                    tundra: atlasSourceSize * 8,
+                ocean: atlasSourceSize * 9,
+                dryland: 64,
+                    dunescape: atlasSourceSize * 10,
+                    desert: atlasSourceSize * 11,
+                    arctic: atlasSourceSize * 12,
                 freshwater: 80,
-                bumpy: 96 
+                    cruisewater: atlasSourceSize * 13,
+                    lake: atlasSourceSize * 14,
+                    frostwater: atlasSourceSize * 15,
+                bumpy: 96,
+                    greenhill: atlasSourceSize * 16,
+                    hill: atlasSourceSize * 17,
+                    frostmound: atlasSourceSize * 18,
+                mountain: atlasSourceSize * 19,
             }
 
             const tilemapIMG = new Image();
             tilemapIMG.src = tilemap;
 
-            // ctx.drawImage(tilemapIMG, 0, 0);
 
-            // this is ZA WARUDO, which is fantastic, but let's take a stroll!
-            // for (let y = 0; y < mapWidth; y++) {
-            //     for (let x = 0; x < mapWidth; x++) {
-            //         ctx.drawImage(tilemapIMG, tileRef[state.mapData[y][x]], 0, 16, 16, y * tileSize, x * tileSize, tileSize, tileSize);
-            //     }
-            // }
-
-            // ok, 'sort of' works, except we got some oddities
   
-            console.log(`Let's draw around our character, who is currently at space ${state.mapCamera.x},${state.mapCamera.y}, which is ${state.mapData[state.mapCamera.x][state.mapCamera.y]}!`);
-            for (let y = 0; y < 11; y++) {
-                for (let x = 0; x < 11; x++) {
+            // console.log(`Let's draw around our character, who is currently at space ${state.mapCamera.x},${state.mapCamera.y}, which is ${state.mapData[state.mapCamera.x][state.mapCamera.y]}!`);
+            // I have some concerns that my x and y axes are flipped here and there? ... worth investigating at some point :P
+            for (let y = 0; y < state.mapCamera.width; y++) {
+                for (let x = 0; x < state.mapCamera.width; x++) {
                     // HERE: extra spot-inference logic for the coming x and y, rerouting them across the map if necessary
                     let xToDraw = state.mapCamera.x - Math.floor(state.mapCamera.width / 2) + x;
                     if (xToDraw < 0) xToDraw = mapWidth + xToDraw;
@@ -201,27 +216,53 @@ export default function MainView() {
                     let yToDraw = state.mapCamera.y - Math.floor(state.mapCamera.width / 2) + y;
                     if (yToDraw < 0) yToDraw = mapWidth + yToDraw;
                     if (yToDraw > mapWidth - 1) yToDraw = yToDraw - mapWidth;
-                    ctx.drawImage(tilemapIMG, tileRef[state.mapData[xToDraw][yToDraw]], 0, 15, 15, x * tileSize, y * tileSize, tileSize, tileSize);
+                    ctx.drawImage(tilemapIMG, tileRef[state?.mapData[xToDraw][yToDraw].biome], 0, 16, 16, Math.floor(x * tileSize), Math.floor(y * tileSize), tileSize, tileSize);
                 }
             }
 
-            // all this aside, just realized we're not even tracking our actual coords, just the middle of the slice of our current view, whoops :P
-            let yTop = tileSize * 5;
-            let yBottom = tileSize * 6;
-            let xMiddle = tileSize * 5.5;
-            let xRight = tileSize * 6;
-            let xLeft = tileSize * 5;
-            ctx.fillStyle = '#0AF';
-            ctx.strokeColor = 'black';
-            ctx.beginPath();
-            ctx.moveTo(xMiddle, yTop);
-            ctx.lineTo(xRight, yBottom);
-            ctx.lineTo(xLeft, yBottom);
+            let blue = true;
+            let spriteCanvas = document.getElementById('spritemap');
+            let spriteCtx = spriteCanvas.getContext('2d');
+            spriteCtx.clearRect(0,0,550,550);
+            let yTop = tileSize * Math.floor(state.mapCamera.width / 2);
+            let yBottom = tileSize * Math.floor(state.mapCamera.width / 2 + 1);
+            let xRight = tileSize * Math.floor(state.mapCamera.width / 2 + 1);
+            let xLeft = tileSize * Math.floor(state.mapCamera.width / 2);
+            let xMiddle = (xRight + xLeft) / 2;
+            spriteCtx.fillStyle = blue ? '#0AF' : 'black';
+            spriteCtx.beginPath();
+            spriteCtx.moveTo(xMiddle, yTop);
+            spriteCtx.lineTo(xRight, yBottom);
+            spriteCtx.lineTo(xLeft, yBottom);
             
-            ctx.fill();
+            spriteCtx.fill();
+
+            // works, if standing still; the interval gets nuked otherwise since moving resets the camera :P
+            myWalkingGuy = setInterval(() => {
+                let spriteCanvas = document.getElementById('spritemap');
+                let spriteCtx = spriteCanvas.getContext('2d');
+                spriteCtx.clearRect(0,0,550,550);
+                let yTop = tileSize * Math.floor(state.mapCamera.width / 2);
+                let yBottom = tileSize * Math.floor(state.mapCamera.width / 2 + 1);
+                let xRight = tileSize * Math.floor(state.mapCamera.width / 2 + 1);
+                let xLeft = tileSize * Math.floor(state.mapCamera.width / 2);
+                let xMiddle = (xRight + xLeft) / 2;
+                spriteCtx.fillStyle = new Date().getSeconds() % 2 == 0 ? '#0AF' : 'black';
+                blue = !blue;
+                spriteCtx.beginPath();
+                spriteCtx.moveTo(xMiddle, yTop);
+                spriteCtx.lineTo(xRight, yBottom);
+                spriteCtx.lineTo(xLeft, yBottom);
+                
+                spriteCtx.fill();
+            }, 1000);
+
         }
-        console.log(`The camera has changed.`)
+        return () => {
+            if (myWalkingGuy != null) clearInterval(myWalkingGuy);
+        }
     }, [state?.mapCamera]);
+
 
 
     return (
@@ -232,6 +273,13 @@ export default function MainView() {
             <div style={{position: 'fixed', width: '100vw', top: '0', left: '0', justifyContent: 'center', alignItems: 'center', height: '100vh', zIndex: '8', backgroundColor: 'hsla(240,50%,10%,0.6)', display: state?.mapData == null ? 'none' : 'flex'}}>
                 <button onClick={() => dispatch({type: actions.LOAD_TEST_MAP})} style={{position: 'absolute', top: '0.25rem', left: '0.25rem'}}>X</button>
                 
+                <div style={{position: 'absolute', bottom: '1rem', left: '1rem'}}>
+                    <button onClick={() => dispatch({type: actions.ADJUST_MAP_ZOOM, payload: 'world'})}>World</button>
+                    <button onClick={() => dispatch({type: actions.ADJUST_MAP_ZOOM, payload: '-'})}>Zoom -</button>
+                    <button onClick={() => dispatch({type: actions.ADJUST_MAP_ZOOM, payload: '+'})}>Zoom +</button>
+                    <button onClick={() => dispatch({type: actions.ADJUST_MAP_ZOOM, payload: 'walker'})}>Walker</button>
+                </div>
+
                 <div style={{position: 'absolute', bottom: '1rem', right: '1rem'}}>
                     <div id='leftbuttoncontainer' style={{alignItems: 'center'}}>
                         <button onClick={() => moveCharacter({x: -1})} style={{height: '50%', marginRight: '0.5rem'}}>LEFT</button>
@@ -245,7 +293,10 @@ export default function MainView() {
                     </div>
                 </div>
                 {/* TEMPORARY HOME FOR MAP-CHECKING! Let's drawr the map... in a function maybe? */}
-                <canvas id="worldmap" width='550px' height='550px'></canvas>
+                
+                    <canvas style={{position: 'absolute', zIndex: '11'}} id="worldmap" width='550px' height='550px'></canvas>
+                    <canvas style={{position: 'absolute', zIndex: '12'}} id="spritemap" width='550px' height='550px'></canvas>
+
             </div>
 
 
@@ -292,7 +343,7 @@ export default function MainView() {
                     </div>
 
                     <form style={{display: 'flex', width: '100%'}} onSubmit={sendChat}>
-                        <input type='text' ref={chatRef} disabled={state?.player?.name == null || state?.player?.chatventure != null} style={{display: 'flex', width: 'calc(100% - 50px)'}} value={chatMessage} onChange={e => setChatMessage(e.target.value)} placeholder={state?.player?.name == null ? `You've forgotten your voice.` : `Hello, World`} />
+                        <input type='text' disabled={state?.player?.name == null} ref={chatRef} autoFocus={state?.player?.name != null} style={{display: 'flex', width: 'calc(100% - 50px)'}} value={chatMessage} onChange={e => setChatMessage(e.target.value)} placeholder={state?.player?.name == null ? `You've forgotten your voice.` : `Hello, World`} />
                         <button disabled={state?.player?.name == null} style={{width: '50px'}} onClick={sendChat}>{'>'}</button>
                     </form>
                 
