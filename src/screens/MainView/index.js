@@ -2,11 +2,14 @@ import React, { useContext, useState, useEffect, useRef } from 'react';
 import { actions, Context, SocketContext } from '../../context';
 import { MyIcon, OverlayContentContainer, VocalSpan } from '../../styled';
 import tilemap from '../../assets/climetiles.jpg';
+import townshipTile from '../../assets/townshiptile.jpg';
 
 export default function MainView() {
     const socket = useContext(SocketContext);
     const [state, dispatch] = useContext(Context);
+    const [WPSInfo, setWPSInfo] = useState(``);
     const [chatMessage, setChatMessage] = useState('');
+    const [potentialFriendArray, setPotentialFriendArray] = useState([]);
     const messageEndRef = useRef(null);
     const chatRef = useRef(null);
 
@@ -44,12 +47,21 @@ export default function MainView() {
     }
 
     function visitNexus() {
+        if (state.player.name == null) return;
         return dispatch({type: actions.VISIT_NEXUS});
     }
 
-    function requestAMap() {
-        return sendSocketData({mapRequest: true}, 'request_a_map');
+    function viewTownshipManagement() {
+        // neat. ok, so now we need to do a request for locationData (map included if possible before our dispatch)
+        // what if the socket request response is what opened our township menu? HRM
+        // so the below would become a socket instead
+        return sendSocketData({soul: state.locationData.name}, 'view_township_management');
+        return dispatch({type: actions.OPEN_TOWNSHIP_MENU});
     }
+
+    // function requestAMap() {
+    //     return sendSocketData({mapRequest: true}, 'request_a_map');
+    // }
 
     function moveCharacter(direction) {
         // eventually the socket will be involved, but for now...
@@ -57,12 +69,34 @@ export default function MainView() {
     }
 
     function visitTownship(name) {
-        console.log(`Requesting a visit to township: ${name}`);
+        // console.log(`Requesting a visit to township: ${name}`);
         return sendSocketData({name: name}, 'request_township_visit');
     }
 
+    function enterTownship() {
+        // figure out which township we're referring to by name, turn off our mappy mode, and then call visitTownship(name) above
+        const townshipToEnter = state.mapData.townships[`${state.player.playStack.wps[0]},${state.player.playStack.wps[1]}`];
+        // console.log(`Oh we want to enter the township belonging to the lovely soul of ${townshipToEnter}`);
+        dispatch({type: actions.LEAVE_WORLD_MAP});
+        return visitTownship(townshipToEnter);
+    }
+
+    function searchPotentialFriends() {
+        return sendSocketData({}, 'search_potential_friends');
+    }
+
+    function followSoul(soulName) {
+        setPotentialFriendArray([]);
+        return sendSocketData({soulName: soulName}, 'follow_soul');
+    }
+    
+    function handleStructInteractionRequest(structToInteract, interaction) {
+        if (interaction === 'nexus') return visitNexus();
+        return sendSocketData({structToInteract: structToInteract, interaction: interaction}, 'interact_with_struct');
+    }
+
     function handleKeyInput(e) {
-        if (state.mapCamera == null) return;
+        if (state.player.playStack.mode !== 'worldMap') return;
         // console.log(e.key);
         switch (e.key) {
             case 'w':
@@ -134,12 +168,22 @@ export default function MainView() {
 
         socket.on('upon_creation', initialCreationObj => {
             // initialCreationObj.playerData, initialCreationObj.token must be handled
+            // and now, with MOAR! let's take in some sweet locationData AND a map!
             localStorage.setItem('CTJWT', initialCreationObj.token);
+            dispatch({type: actions.UPDATE_LOCATION, payload: initialCreationObj.locationData})
             return dispatch({type: actions.LOAD_PLAYER, payload: initialCreationObj.playerData});
         });
 
         socket.on('new_play_map', dasMap => {
             return dispatch({type: actions.LOAD_TEST_MAP, payload: dasMap});
+        });
+
+        socket.on('enter_world_map', entryData => {
+            return dispatch({type: actions.ENTER_WORLD_MAP, payload: entryData});
+        });
+
+        socket.on('potential_friends_list', soulArray => {
+            return setPotentialFriendArray(soulArray);
         });
         
 
@@ -150,73 +194,82 @@ export default function MainView() {
     }, [state?.locationData?.history]);
 
     useEffect(() => {
-        if (state?.player?.name != null && state?.player?.playStack.gps !== 'nexus') chatRef.current.focus();
+        if (state?.player?.name != null && state?.player?.playStack.mode == null) chatRef.current.focus();
     }, [state?.player?.name]);
 
     useEffect(() => {
-        if (state?.player?.chatventure == null) chatRef.current.focus();
+        if (state?.player?.chatventure == null && chatRef != null) chatRef.current.focus();
     }, [state?.player?.chatventure])
 
     useEffect(() => {
         let myWalkingGuy;
-        if (state?.mapData != null) {
-            // console.log(`Man I should do something with this sweet, sweet mapData!`);
+        if (state?.map != null && state.player.playStack.mode === 'worldMap') {
             let canvas = document.getElementById('worldmap');
             let ctx = canvas.getContext('2d');
             ctx.clearRect(0,0,550,550);
-            let mapWidth = state?.mapData[0].length;
-            let tileSize = Math.floor(550 / state.mapCamera.width);
+            let mapWidth = state?.map[0].length;
+            let tileSize = Math.round(550 / state.mapCamera.width);
 
 
-            // 16px at a time... probably
+            // 16px at a time currently
             // tileRef is essentially a proto-atlas
+            // jwt smb vpu nda clf ghr M
             let atlasSourceSize = 16;
             const tileRef = {
                 forest: 0,
-                    jungle: 0,
-                    wood: atlasSourceSize * 1,
-                    taiga: atlasSourceSize * 2,
+                    j: 0,
+                    w: atlasSourceSize * 1,
+                    t: atlasSourceSize * 2,
                 wetland: 16,
-                    swamp: atlasSourceSize * 3,
-                    marsh: atlasSourceSize * 4,
-                    bog: atlasSourceSize * 5,
+                    s: atlasSourceSize * 3,
+                    m: atlasSourceSize * 4,
+                    b: atlasSourceSize * 5,
                 flatland: 32,
-                    savanna: atlasSourceSize * 6,
-                    plain: atlasSourceSize * 7,
-                    tundra: atlasSourceSize * 8,
-                ocean: atlasSourceSize * 9,
+                    v: atlasSourceSize * 6,
+                    p: atlasSourceSize * 7,
+                    u: atlasSourceSize * 8,
+                o: atlasSourceSize * 9,
                 dryland: 64,
-                    dunescape: atlasSourceSize * 10,
-                    desert: atlasSourceSize * 11,
-                    arctic: atlasSourceSize * 12,
+                    n: atlasSourceSize * 10,
+                    d: atlasSourceSize * 11,
+                    a: atlasSourceSize * 12,
                 freshwater: 80,
-                    cruisewater: atlasSourceSize * 13,
-                    lake: atlasSourceSize * 14,
-                    frostwater: atlasSourceSize * 15,
+                    c: atlasSourceSize * 13,
+                    l: atlasSourceSize * 14,
+                    f: atlasSourceSize * 15,
                 bumpy: 96,
-                    greenhill: atlasSourceSize * 16,
-                    hill: atlasSourceSize * 17,
-                    frostmound: atlasSourceSize * 18,
-                mountain: atlasSourceSize * 19,
+                    g: atlasSourceSize * 16,
+                    h: atlasSourceSize * 17,
+                    r: atlasSourceSize * 18,
+                M: atlasSourceSize * 19,
             }
 
             const tilemapIMG = new Image();
             tilemapIMG.src = tilemap;
-
+            const townshipIMG = new Image();
+            townshipIMG.src = townshipTile;
 
   
-            // console.log(`Let's draw around our character, who is currently at space ${state.mapCamera.x},${state.mapCamera.y}, which is ${state.mapData[state.mapCamera.x][state.mapCamera.y]}!`);
+            // console.log(`Let's draw around our character, who is currently at space ${state.mapCamera.x},${state.mapCamera.y}, which is ${state.map[state.mapCamera.x][state.mapCamera.y]}!`);
             // I have some concerns that my x and y axes are flipped here and there? ... worth investigating at some point :P
             for (let y = 0; y < state.mapCamera.width; y++) {
                 for (let x = 0; x < state.mapCamera.width; x++) {
                     // HERE: extra spot-inference logic for the coming x and y, rerouting them across the map if necessary
-                    let xToDraw = state.mapCamera.x - Math.floor(state.mapCamera.width / 2) + x;
+                    let xToDraw = state.player.playStack.wps[0] - Math.floor(state.mapCamera.width / 2) + x;
                     if (xToDraw < 0) xToDraw = mapWidth + xToDraw;
                     if (xToDraw > mapWidth - 1) xToDraw = xToDraw - mapWidth;
-                    let yToDraw = state.mapCamera.y - Math.floor(state.mapCamera.width / 2) + y;
+                    xToDraw = Math.round(xToDraw);
+                    let yToDraw = state.player.playStack.wps[1] - Math.floor(state.mapCamera.width / 2) + y;
                     if (yToDraw < 0) yToDraw = mapWidth + yToDraw;
                     if (yToDraw > mapWidth - 1) yToDraw = yToDraw - mapWidth;
-                    ctx.drawImage(tilemapIMG, tileRef[state?.mapData[xToDraw][yToDraw].biome], 0, 16, 16, Math.floor(x * tileSize), Math.floor(y * tileSize), tileSize, tileSize);
+                    yToDraw = Math.round(yToDraw);
+                    // drawing 15, 15 from the source helps mitigate visual tiling, at the cost of losing 1/16th of the right and bottom edges of the source tiles
+                    // will have to do some SCIENCE to figure out if it's the app I'm using to pixel or just the math in this drawing section
+                    ctx.drawImage(tilemapIMG, tileRef[state?.map[xToDraw][yToDraw][0]], 0, 15, 15, Math.round(x * tileSize), Math.round(y * tileSize), tileSize, tileSize);
+                    if (state?.map[xToDraw][yToDraw][3] !== '0') {
+                        // I think I did x16 sizing, so we'll do 16 * 16 on the source file to see if that draws it well enough
+                        ctx.drawImage(townshipIMG, 0, 0, 16 * 16, 16 * 16, Math.round(x * tileSize), Math.round(y * tileSize), tileSize, tileSize);
+                    }
                 }
             }
 
@@ -257,11 +310,113 @@ export default function MainView() {
                 spriteCtx.fill();
             }, 1000);
 
+            // HERE: wps info
+            if (state.map[state.player.playStack.wps[0]][state.player.playStack.wps[1]][3] === 'T') {
+                setWPSInfo(`A Township`);
+            } else {
+                
+                switch (state.map[state.player.playStack.wps[0]][state.player.playStack.wps[1]][0]) {
+                    case 'j': {
+                        setWPSInfo(`Jungle`);
+                        break;
+                    }
+                    case 'w': {
+                        setWPSInfo(`Woods`);
+                        break;
+                    }
+                    case 't': {
+                        setWPSInfo(`Taiga`);
+                        break;
+                    }
+
+                    case 's': {
+                        setWPSInfo(`Swamp`);
+                        break;
+                    }
+                    case 'm': {
+                        setWPSInfo(`Marsh`);
+                        break;
+                    }
+                    case 'b': {
+                        setWPSInfo(`Bog`);
+                        break;
+                    }
+
+                    case 'v': {
+                        setWPSInfo(`Savanna`);
+                        break;
+                    }
+                    case 'p': {
+                        setWPSInfo(`Plains`);
+                        break;
+                    }
+                    case 'u': {
+                        setWPSInfo(`Tundra`);
+                        break;
+                    }
+
+                    case 'n': {
+                        setWPSInfo(`Dunescape Desert`);
+                        break;
+                    }
+                    case 'd': {
+                        setWPSInfo(`Rocky Desert`);
+                        break;
+                    }
+                    case 'a': {
+                        setWPSInfo(`Arctic Wasteland`);
+                        break;
+                    }
+
+                    case 'c': {
+                        setWPSInfo(`Tropical Lake`);
+                        break;
+                    }
+                    case 'l': {
+                        setWPSInfo(`Lake`);
+                        break;
+                    }
+                    case 'f': {
+                        setWPSInfo(`Frozen Lake`);
+                        break;
+                    }
+
+                    case 'g': {
+                        setWPSInfo(`Grassy Hill`);
+                        break;
+                    }
+                    case 'h': {
+                        setWPSInfo(`Rocky Hill`);
+                        break;
+                    }
+                    case 'r': {
+                        setWPSInfo(`Frozen Hill`);
+                        break;
+                    }
+
+                    case 'M': {
+                        setWPSInfo(`Mountain`);
+                        break;
+                    }
+
+
+                }
+            }
+            
+
         }
         return () => {
             if (myWalkingGuy != null) clearInterval(myWalkingGuy);
         }
-    }, [state?.mapCamera]);
+
+        // rejiggered the useEffect to fire when we get a new map rather than a new mapCamera :P
+    }, [state?.player.playStack.wps]);
+
+    useEffect(() => {
+        if (state.player.playStack.overlay === 'township_management') {
+            console.log(`Let's manage it, somehow!`);
+        }
+    }, [state.player.playStack?.overlay])
 
 
 
@@ -269,10 +424,19 @@ export default function MainView() {
         
         <div style={{padding: '1rem', width: '100vw', minHeight: '100vh', justifyContent: 'flex-start', alignItems: 'center', flexDirection: 'column'}}>
 
+            {/* the mildly haxxy way of loading the tilemap beforehand... oh, we should probably do it with township too */}
             <img src={tilemap} id='myTiles' width='112' height='16' style={{height: '0', width: '0', visibility: 'hidden'}} />
-            <div style={{position: 'fixed', width: '100vw', top: '0', left: '0', justifyContent: 'center', alignItems: 'center', height: '100vh', zIndex: '8', backgroundColor: 'hsla(240,50%,10%,0.6)', display: state?.mapData == null ? 'none' : 'flex'}}>
+            <img src={townshipTile} id='townshippin' width='112' height='16' style={{height: '0', width: '0', visibility: 'hidden'}} />
+
+
+            <div style={{position: 'fixed', width: '100vw', top: '0', left: '0', justifyContent: 'center', alignItems: 'center', height: '100vh', zIndex: '8', backgroundColor: 'hsla(240,50%,10%,0.6)', display: (state?.player.playStack.mode === 'worldMap' && state.map != null) ? 'flex' : 'none'}}>
                 <button onClick={() => dispatch({type: actions.LOAD_TEST_MAP})} style={{position: 'absolute', top: '0.25rem', left: '0.25rem'}}>X</button>
                 
+                <div style={{position: 'absolute', top: '10%', backgroundColor: 'white', width: '500px', textAlign: 'center', justifyContent: 'center', alignItems: 'center', padding: '0.75rem'}}>
+                    {WPSInfo}
+                    {WPSInfo === 'A Township' && <button onClick={() => enterTownship()} style={{height: '50px', position: 'absolute', right: '1rem'}}>Enter</button>}
+                </div>
+
                 <div style={{position: 'absolute', bottom: '1rem', left: '1rem'}}>
                     <button onClick={() => dispatch({type: actions.ADJUST_MAP_ZOOM, payload: 'world'})}>World</button>
                     <button onClick={() => dispatch({type: actions.ADJUST_MAP_ZOOM, payload: '-'})}>Zoom -</button>
@@ -292,8 +456,7 @@ export default function MainView() {
                         <button onClick={() => moveCharacter({x: 1})} style={{height: '50%', marginLeft: '0.5rem'}}>RIGHT</button>
                     </div>
                 </div>
-                {/* TEMPORARY HOME FOR MAP-CHECKING! Let's drawr the map... in a function maybe? */}
-                
+                    {/* These canvases should consider living in a div of some sort, right? :P */}
                     <canvas style={{position: 'absolute', zIndex: '11'}} id="worldmap" width='550px' height='550px'></canvas>
                     <canvas style={{position: 'absolute', zIndex: '12'}} id="spritemap" width='550px' height='550px'></canvas>
 
@@ -315,25 +478,48 @@ export default function MainView() {
                 ) : (
                     <button onClick={() => dispatch({type: actions.OPEN_PLAYER_MENU})} style={{height: '100%', justifyContent: 'center', alignItems: 'center'}}>{state?.player?.name || `Who am I...?`}</button>
                 )}
-                <button onClick={() => dispatch({type: actions.OPEN_TOWNSHIP_MENU})} style={{height: '100%', justifyContent: 'center', marginLeft: '0.75rem', alignItems: 'center'}}>{state?.locationData?.nickname || 'Zenithica'}</button>
-                <button onClick={visitNexus} style={{display: state?.player?.name == null ? 'none' : 'flex', marginLeft: '0.75rem', height: '100%'}}>NEXUS</button>
-                <button onClick={requestAMap} style={{display: state?.player?.name == null ? 'none' : 'flex', marginLeft: '0.75rem', height: '100%'}}>GIMME MAP</button>
+                <button onClick={() => viewTownshipManagement()} style={{height: '100%', justifyContent: 'center', marginLeft: '0.75rem', alignItems: 'center'}}>{state?.locationData?.nickname || 'Zenithica'}</button>
+                {/* <button onClick={visitNexus} style={{display: state?.player?.name == null ? 'none' : 'flex', marginLeft: '0.75rem', height: '100%'}}>NEXUS</button> */}
+                {/* <button onClick={requestAMap} style={{display: state?.player?.name == null ? 'none' : 'flex', marginLeft: '0.75rem', height: '100%'}}>GIMME MAP</button> */}
             </div>
 
             {state?.player?.playStack.gps === 'nexus' ? (
-                <div style={{flexDirection: 'column', width: '100%'}}>
+                // shenanigans: assigning chatRef to this maaay fix some awkward problems. or make them worse. or make new ones? we'll find out!
+                <div ref={chatRef} style={{flexDirection: 'column', width: '100%'}}>
                     VISIT A PLACE, FRIENDO:
                     {state?.player?.following.map((name, index) => 
                         <button onClick={() => visitTownship(name)} key={index} style={{marginTop: '1rem'}}>{name}</button>
                     )}
+                    <div style={{width: '100%', marginTop: '1rem', flexDirection: 'column'}}>
+                        <button style={{display: potentialFriendArray.length > 0 ? 'none' : 'flex'}} onClick={searchPotentialFriends}>Search for Friends</button>
+                        {potentialFriendArray.map((soulName, index) => (
+                            <div key={index} style={{width: '100%', border: '1px solid black', borderRadius: '0.75rem', padding: '1rem', flexDirection: 'column'}}>
+                                <div style={{width: '100%'}}>{soulName}</div>
+                                <div><button onClick={() => followSoul(soulName)}>Follow</button></div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             ) : (
                 <div id="midsection" style={{width: '100%', flexDirection: 'column', padding: '1rem', border: '1px solid green', overflow: 'scroll', height: 'calc(100% - 100px)'}}>
                 
-                    <div style={{width: '100%', paddingBottom: '1rem', borderBottom: '1px solid hsl(240,90%,10%)'}}>{state?.locationData?.description || `You're getting your bearings...`}</div>
+                    <div style={{width: '100%', padding: '0.75rem', borderBottom: '1px solid hsl(240,90%,10%)', maxHeight: '20vh', flexDirection: 'column', border: '1px solid aqua'}}>
+                        <div style={{width: '100%', flexWrap: 'wrap'}}>
+                            {Object.keys(state?.locationData?.structs)?.map((structKey, index) => {
+                                const thisStruct = state.locationData.structs[structKey];
+                                return (
+                                    <div onClick={() => handleStructInteractionRequest(thisStruct, thisStruct.interactions.default)} style={{marginRight: '0.75rem', height: '100px', width: '100px', border: '1px solid hsl(240,50%,20%)', flexDirection: 'column', alignItems: 'center'}} key={index}>
+                                        <div style={{width: '100%', height: '70px', width: '70px', marginTop: '10px', backgroundColor: "#0AF"}}></div>
+                                        <div style={{justifyContent: 'center', alignItems: 'center', height: '20px'}}>{state.locationData.structs[structKey].displayName}</div>
+                                    </div>
+                                )
+                        })}
+                        </div>
+                        <div style={{marginTop: '1rem'}}>{state?.locationData?.description || `You're getting your bearings...`}</div>
+                    </div>
 
                     {/* NOTE: adjust the height of the below later, but ensure height is well-defined so that overflow scrolls properly */}
-                    <div style={{width: '100%', flexDirection: 'column', border: '2px solid #0AF', height: '70vh', overflow: 'scroll'}}>
+                    <div style={{width: '100%', flexDirection: 'column', border: '2px solid #0AF', height: '55vh', overflow: 'scroll'}}>
                         {state?.locationData?.history.slice(state?.locationData?.history?.length - 21, state?.locationData?.history?.length).map((historyObj, index) => (
                             <ChatEvent key={index} chatEventObject={historyObj} />
                             
@@ -683,14 +869,18 @@ function OverlayContent({state, dispatch, sendSocketData, logout}) {
         }
 
         case 'township_management': {
-            // oh my. we're ASSUMING we can rename right now, so uh, definitely refactor to check to see if we have that kind of authority.
-            // also, this crashes in Zenithica, so mmmmmaybe we want to have separate renders for "this is MY town" vs "this is A town"
-            if (state?.locationData?.name === state?.player?.name) {
+            // ok, let's see... when we click this, if NOT Zenithica, we want to see our overworld in a map
+            // and boopable boxes for management of resource gathering... two expeditions possible at start
+            // thinking 3 in every direction, so width and height of 7
+            // I think the simplest solution is to procedurally generate an overlay grid of divs that use township wps data to reference the map and get resources going
+            // request to the backend, confirm in the client? 
+            // we can't assume a map is present currently; go give that a grab when we load this concept
+            
                 return (
                     <OverlayContentContainer>
+                        {/* !MHRnao - refactor for same display either way, but management options when it's ours */}
                         <div style={{alignItems: 'center', justifyContent: 'center', padding: '1rem', textAlign: 'center'}}>
-                            {/* This, for whatever reason, works a TON better than the local townshipName state variable... */}
-                            
+
                             {state?.locationData?.name === state?.player?.name ? (
                                 <div>
                                     <input type='text' value={townshipName} onChange={e => setTownshipName(e.target.value)} />
@@ -707,11 +897,7 @@ function OverlayContent({state, dispatch, sendSocketData, logout}) {
                         
                         <div style={{flexDirection: 'column', alignItems: 'center', width: '100%'}}>
                             <div>Your STRUCTS, sir or madam!</div>
-                            {/* {Object.keys(state?.locationData?.structs)?.map((structID, index) => (
-                                <button style={{backgroundColor: '#0AF', color: 'white', padding: '0.85rem', width: '500px', maxWidth: '80%', height: '80px', marginBottom: '0.75rem'}} key={index}>{structID.toUpperCase()}
 
-                                </button>
-                            ))} */}
                                 {Object.keys(state?.locationData?.structs)?.map((structID, index) => {
                                     let thisStruct = state.locationData.structs[structID];
                                     return (
@@ -745,12 +931,7 @@ function OverlayContent({state, dispatch, sendSocketData, logout}) {
                         <button style={{position: 'absolute', top: '1rem', left: '1rem'}} onClick={dismissMe}>X</button>
                     </OverlayContentContainer>
                 )
-            }  else return (
-                <OverlayContentContainer>
-                    <div>You don't KNOW ME</div>
-                    <button style={{position: 'absolute', top: '1rem', left: '1rem'}} onClick={dismissMe}>X</button>
-                </OverlayContentContainer>
-            )
+   
         }
 
         default: {

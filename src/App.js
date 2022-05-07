@@ -566,6 +566,112 @@ NEXUS can hold the worldID, as well as coords within the world
 need a way to signal we're in the MODE of walkin' aboot
 - chatventure sync
 
-township itself can hold information on stuff like tiles available to send to gather?
+
+next up:
+1) generate a new 'tutorial' world while creating a new player, search for a savanna once the world is set up, establish the township ON that savanna
+  x - ok, we now spawn our starter character's township on a savanna (probably), neat
+  x - resize worlds so they're not intensely insanely massive files, DONE
+
+
+2) figure out and begin income process (and maybe some starter materials already on hand)
+3) display that to user when in township, which should already be running right away
+4) be able to assign two 'away team' gathering spots?
+5) basic building/ugprade logic within township... and maybe for reachable tiles?
+6) be able to pop out of current township and stroll about via town gate
+7) use Nexus to search for other townships and go chat and stroll about THEIR wacky worlds
+
+
+to make:
+1) township icon for world map
+
+
+
+Ok, but for now, let's move on. We can change our saving concepts a lil' later!
+... now then, we can apply roads, rivers maybe, townships on the map FOR SURE. How do we want to save/display?
+... we can get especially cheeky with minimalism here and have things like "j" is jungle, and we can extend the string
+now then, we're using mostly lowercase, but 26 lower, 26 upper, and 10 numbers = 62 possible base tile types per character under the 'current model' thinking
+... and realistically, we could throw in symbols as well for another however many, so we're good there. so, given that...
+we can derive a system for 'easy tile lore'
+FIRST SPOT: the tile type, such as j = jungle
+SECOND SPOT: tile placement detail for later, such as lower left, middle, upper (from spritesheet, once implemented)
+THIRD SPOT: tile 'natural special'? coal-hill, etc. ... each tile should have at least 1, some can have more than that if I'm feeling inspired :P
+  - 0 = normal tile
+FOURTH SPOT: tile built special... player-constructed, mob-constructed stuff; TOWNSHIP takes precedence, T! if township is there, we'll T it up
+
+so we can expect something like v00T for our starting township spot, let's make it happen, y'all
+
+
+ok, every tile by default gives 'universal materials,' but has a chance of procuring tile-specific special materials, higher chance at higher level worlds
+
+common universal components versus rare components
+- modified based on world level/position in world? 'distance from spawn' modifier using min distance fxn
+- so worldSpawn data would need to be saved... the 'center' of a new world, although we could also just use savannaTileGPS? wouldn't be 'centered' but that's fine
+- cool, ok, we'll redraw the concept based on tile data... let's list tiles and their incomes below, and maybe some natural specials for them
+- we'll ensure the township starts with a simple well so we have a 1 water income default
+
+jwt smb vpu nda clf ghr M
+NOTE: can implement 'natural tile specials' in a little bit; let's focus on core capacity first
+j (jungle): 2 wood, 1 game, 1 herb
+  - wild: +1 game
+w (wood): 3 wood, 1 game
+  - wild: +1 game
+t (taiga): 3 wood, 1 game
+  - wild: +1 game
+
+s (swamp): 1 wood, 1 herb, 1 water
+m (marsh): 2 herb, 1 water
+b (bog): 1 herb, 1 water
+
+v (savanna): 1 wood, 1 game, 1 herb
+p (plain): 1 game, 1 herb
+u (tundra): 1 game
+
+n (dunescape): 2 mineral
+d (desert): 1 mineral, 1 stone
+a (arctic): 1 mineral
+
+c (cruisewater): 2 water, 1 game
+  - fishy: +1 game
+l (lake): 2 water, 1 game
+  - fishy: +1 game
+f (frostwater): 1 water
+
+g (greenhill): 1 mineral, 1 stone, 1 game, 1 herb
+h (hill): 2 mineral, 1 stone
+  - loded: +1 mineral
+r (frostmound): 3 mineral, 1 stone
+
+M (mountain): 2 mineral, 2 stone
+
+river adds +1 water universally, may add other mods specifically
+  - river can meander through any forest, flatland, or bumpy zone; rivers can ORIGINATE from freshwater, wetland, or lakey mountain
+road present FROM current space TO target space (aside from enabling connections for trade, income, events, npc stuff in the future, etc.) reduce threat rise from travel
+  - every space traveled by default increases threat and rolls for encounter; traveling along roads greatly diminishes 'random encounters'
+
+OK! LET'S TOWNSHIP!
+- okiedokie! now we can actually visit the worlds of our FRIENDS! (well, followed-ers :P)
+- ok, we can now re-enter the township via the ENTER button awkwardly on the tile desc strip, good enough for now (add DQ menu shortly)
+NEXT,
+x- add displayName to structs for township display
+o- next we should get township management working -- VIEW by default (except Zenithica), MANAGE if it's yours
+  (x) first off, gotta remove all Zenithica stuff if that's where we're at... oddly defaults to whatever your last actual township was
+  (x) OOPS: clicking NEXUS when a Husk is... bad. but now we just don't allow it. :P
+  (o) we need at least basic management data available in the township structure - let's go define that setup
+
+
+o- THOUGHT: hey, we can have the client handle a certain subset of requests on default struct interactions, such as NEXUS before throwing it to the backend
+o- brainstorm more starter structs, get their starter classes/objects/blueprints going
+
+now that we can add friends, which is great, we have "You don't KNOW ME" displaying when clicking the township name... not ideal, we need those structs :P
+- then let's turn that into a proper township management thing
+  - this will likely require more structs in the township to be built and designed to work predictably
+  - also, let's have allocatable squares and a TOWNSHIP ALLOCATION WINDOW of clickable tiles that highlight somehow (can drawRect, maybe? simple as can be)
+
+
+WHOOPSIE
+- slight whoops is that we don't redraw on camera change, so zoom level changing does NOT redraw until we move right now
+- also we get lots of errors if MainView has changes whilst we're in the nexus
+- adding a new friend to follow kicks back to your own township screen (due to player data overwrite), so consider adding a 'whichScreen' type optional var to check for
+
 
 */

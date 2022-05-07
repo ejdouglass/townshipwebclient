@@ -19,7 +19,7 @@ export const OverlayContentContainer = styled.div`
     position: relative;
     width: calc(500px + 40vw);
     max-width: 95vw;
-    min-height: 70vh;
+    min-height: 90vh;
     justify-content: center;
     align-items: center;
     background-color: white;
