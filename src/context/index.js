@@ -24,7 +24,8 @@ export const actions = {
     ADJUST_MAP_ZOOM: 'adjust_map_zoom',
     ENTER_WORLD_MAP: 'enter_world_map',
     LEAVE_WORLD_MAP: 'leave_world_map',
-    LOAD_MANAGEMENT_DATA: 'load_management_data'
+    LOAD_MANAGEMENT_DATA: 'load_management_data',
+    BEGIN_BATTLE: 'begin_battle'
 
 };
 
@@ -100,6 +101,7 @@ export const Reducer = (state, action) => {
             // ok, now we have to refactor to move state.player.playStack.wps [x,y] around instead; mapCamera will no longer be the focal point, but will still have w/h?
             // playStack can determine what we're up to... ooh, mode worldMap? so if mode is worldMap, we can skiddly-scoot
             if (state.map == null || state.mapCamera == null) return state;
+            if (state.player.playStack.mode !== 'worldMap') return state;
             let currentCoords = {x: state.player.playStack.wps[0], y: state.player.playStack.wps[1]};
             Object.keys(action.payload).forEach(coordKey => currentCoords[coordKey] = currentCoords[coordKey] + action.payload[coordKey]);
             if (currentCoords.x < 0) currentCoords.x = state.map.length - 1;
@@ -108,7 +110,7 @@ export const Reducer = (state, action) => {
             if (currentCoords.y === state.map.length) currentCoords.y = 0;
             // console.log(`Square moving into is: `, state.map[currentCoords.x][[currentCoords.y]]);
             if (state.map[currentCoords.x][currentCoords.y][0] === 'o' || state.map[currentCoords.x][currentCoords.y][0] === 'l' || state.map[currentCoords.x][currentCoords.y][0] === 'M' || state.map[currentCoords.x][currentCoords.y][0] === 'c' || state.map[currentCoords.x][currentCoords.y][0] === 'f') return state;
-            return {...state, player: {...state.player, playStack: {...state.player.playStack, wps: [currentCoords.x,currentCoords.y]}}};
+            return {...state, threat: state?.threat + 1, player: {...state.player, playStack: {...state.player.playStack, wps: [currentCoords.x,currentCoords.y]}}};
         }
         case actions.ADJUST_MAP_ZOOM: {
             // we'll tie this to magic/abilities to modify zoom shortly
@@ -143,8 +145,25 @@ export const Reducer = (state, action) => {
 
                 NOTE: this is through playStack.overlay option, rather than mode, so we can hinge the map loading on that
 
+                NOTE REDUX: ... all of the above is an older comment, we're blazing ahead with HAXXY TESTING MODE, enjoy!
+
             */
-            return state;
+
+            // oh, we can do this now
+            // getting a {wealth: 0, weight: 0, townstats: {}} payload
+
+            // oops. yeah, no, we can't just slap it in there wholesale, now we probably have a map here. one sec.
+            
+            if (state.map == null) {
+                // HERE: pop that map into existence
+                const { mapObj } = action.payload;
+            }
+            console.log(`Setting mgmtData: `, action.payload);
+            return {...state, mgmtData: {...action.payload}};
+        }
+        case actions.BEGIN_BATTLE: {
+            // not actually really battle-ready yet :P
+            return {...state, threat: 0};
         }
         
         
@@ -157,6 +176,7 @@ const initialState = {
     name: undefined, // this'll be in player.name, so we can proooobably just phase this out altogether
     map: null,
     mapData: null,
+    threat: 0,
     mapCamera: {width: 21, height: 21}, // default world map values for now
     player: {
         name: undefined,
@@ -183,6 +203,7 @@ const initialState = {
         history: [],
         structs: {}
     },
+    mgmtData: null, // client-specific mgmtData to trigger township management... haxxy for testing purposes :P
     alertString: undefined,
     currentTownship: undefined,
     serverResponse: {},

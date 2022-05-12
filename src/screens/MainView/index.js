@@ -55,6 +55,7 @@ export default function MainView() {
         // neat. ok, so now we need to do a request for locationData (map included if possible before our dispatch)
         // what if the socket request response is what opened our township menu? HRM
         // so the below would become a socket instead
+        if (state?.locationData?.name === 'Zenithica') return;
         return sendSocketData({soul: state.locationData.name}, 'view_township_management');
         return dispatch({type: actions.OPEN_TOWNSHIP_MENU});
     }
@@ -91,6 +92,7 @@ export default function MainView() {
     }
     
     function handleStructInteractionRequest(structToInteract, interaction) {
+        if (interaction == null) return;
         if (interaction === 'nexus') return visitNexus();
         return sendSocketData({structToInteract: structToInteract, interaction: interaction}, 'interact_with_struct');
     }
@@ -184,6 +186,10 @@ export default function MainView() {
 
         socket.on('potential_friends_list', soulArray => {
             return setPotentialFriendArray(soulArray);
+        });
+
+        socket.on('township_management_data', mgmtData => {
+            return dispatch({type: actions.LOAD_MANAGEMENT_DATA, payload: mgmtData});
         });
         
 
@@ -418,6 +424,102 @@ export default function MainView() {
         }
     }, [state.player.playStack?.overlay])
 
+    useEffect(() => {
+        //!MHRthreat
+        
+        // cribbed rando with 1,100 :P
+        let threatRoll = Math.floor(Math.random() * (100 - 1 + 1)) + 1;
+        if (state?.threat > threatRoll) {
+            console.log(`Oh! A SLIME APPROACHES! Dun dun da dundundun...`);
+            return dispatch({type: actions.BEGIN_BATTLE});
+        }
+        
+    }, [state?.threat]);
+
+    useEffect(() => {
+        // !MHRmgmtmap
+        if (state?.mgmtData != null && state?.map != null) {
+            return;
+            let canvas = document.getElementById('managementmap');
+            let ctx = canvas.getContext('2d');
+            ctx.clearRect(0,0,550,550);
+            let mapWidth = state?.map[0].length;
+            let tileSize = Math.round(550 / state.mapCamera.width);
+
+
+            // 16px at a time currently
+            // tileRef is essentially a proto-atlas
+            // jwt smb vpu nda clf ghr M
+            let atlasSourceSize = 16;
+            const tileRef = {
+                forest: 0,
+                    j: 0,
+                    w: atlasSourceSize * 1,
+                    t: atlasSourceSize * 2,
+                wetland: 16,
+                    s: atlasSourceSize * 3,
+                    m: atlasSourceSize * 4,
+                    b: atlasSourceSize * 5,
+                flatland: 32,
+                    v: atlasSourceSize * 6,
+                    p: atlasSourceSize * 7,
+                    u: atlasSourceSize * 8,
+                o: atlasSourceSize * 9,
+                dryland: 64,
+                    n: atlasSourceSize * 10,
+                    d: atlasSourceSize * 11,
+                    a: atlasSourceSize * 12,
+                freshwater: 80,
+                    c: atlasSourceSize * 13,
+                    l: atlasSourceSize * 14,
+                    f: atlasSourceSize * 15,
+                bumpy: 96,
+                    g: atlasSourceSize * 16,
+                    h: atlasSourceSize * 17,
+                    r: atlasSourceSize * 18,
+                M: atlasSourceSize * 19,
+            }
+
+            const tilemapIMG = new Image();
+            tilemapIMG.src = tilemap;
+            const townshipIMG = new Image();
+            townshipIMG.src = townshipTile;
+
+  
+            // currently hard-coding the 7x7 that is management window, though we may eventually move to a dynamically defined mapCamera in this case, as well
+            /*
+            
+            Let's think about the elements of mgmtData we want/need here
+                - we definitely want to swap the wps for the GPS coords of the township
+                - ok! state.mgmtData.wps is now a thing. roll out!
+
+            Next up, we're definitely gonna have to make some clicky-divs, soooo we might not actually do a canvas after all. :P
+                - but we can still brainstorm here
+            
+            */
+            for (let y = 0; y < 7; y++) {
+                for (let x = 0; x < 7; x++) {
+                    // HERE: extra spot-inference logic for the coming x and y, rerouting them across the map if necessary
+                    let xToDraw = state.player.playStack.wps[0] - Math.floor(7 / 2) + x;
+                    if (xToDraw < 0) xToDraw = mapWidth + xToDraw;
+                    if (xToDraw > mapWidth - 1) xToDraw = xToDraw - mapWidth;
+                    xToDraw = Math.round(xToDraw);
+                    let yToDraw = state.player.playStack.wps[1] - Math.floor(7 / 2) + y;
+                    if (yToDraw < 0) yToDraw = mapWidth + yToDraw;
+                    if (yToDraw > mapWidth - 1) yToDraw = yToDraw - mapWidth;
+                    yToDraw = Math.round(yToDraw);
+                    // drawing 15, 15 from the source helps mitigate visual tiling, at the cost of losing 1/16th of the right and bottom edges of the source tiles
+                    // will have to do some SCIENCE to figure out if it's the app I'm using to pixel or just the math in this drawing section
+                    ctx.drawImage(tilemapIMG, tileRef[state?.map[xToDraw][yToDraw][0]], 0, 15, 15, Math.round(x * tileSize), Math.round(y * tileSize), tileSize, tileSize);
+                    if (state?.map[xToDraw][yToDraw][3] !== '0') {
+                        // I think I did x16 sizing, so we'll do 16 * 16 on the source file to see if that draws it well enough
+                        ctx.drawImage(townshipIMG, 0, 0, 16 * 16, 16 * 16, Math.round(x * tileSize), Math.round(y * tileSize), tileSize, tileSize);
+                    }
+                }
+            }            
+        }
+    }, [state?.mgmtData]);
+
 
 
     return (
@@ -431,6 +533,10 @@ export default function MainView() {
 
             <div style={{position: 'fixed', width: '100vw', top: '0', left: '0', justifyContent: 'center', alignItems: 'center', height: '100vh', zIndex: '8', backgroundColor: 'hsla(240,50%,10%,0.6)', display: (state?.player.playStack.mode === 'worldMap' && state.map != null) ? 'flex' : 'none'}}>
                 <button onClick={() => dispatch({type: actions.LOAD_TEST_MAP})} style={{position: 'absolute', top: '0.25rem', left: '0.25rem'}}>X</button>
+
+                <div style={{position: 'absolute', top: '0.25rem', right: '0.25rem', backgroundColor: 'white', height: '2rem', width: '3rem', justifyContent: 'center', alignItems: 'center'}}>
+                    {state?.threat}
+                </div>
                 
                 <div style={{position: 'absolute', top: '10%', backgroundColor: 'white', width: '500px', textAlign: 'center', justifyContent: 'center', alignItems: 'center', padding: '0.75rem'}}>
                     {WPSInfo}
@@ -462,11 +568,30 @@ export default function MainView() {
 
             </div>
 
+            {/* THIS: Township Management Window */}
+            <div style={{position: 'fixed', width: '100vw', top: '0', left: '0', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', zIndex: '8', backgroundColor: 'hsla(240,50%,10%,0.6)', display: (state?.mgmtData !== null) ? 'flex' : 'none'}}>
+                <div style={{width: '90vw', height: '90vh', overflow: 'scroll', flexDirection: 'column', padding: '0.75rem', alignItems: 'center', backgroundColor: 'white'}}>
+                    <div>Your township, sire or siress!</div>
+                    <div>Wealth: {state?.mgmtData?.wealth || 0} ... Build Weight: {state?.mgmtData?.weight}</div>
+                    <div>I am MAP. Boop boop. I mean, if you HAVE a map. ({state?.map != null ? `You do.` : `You don't, though.`}) It's possible not to have a map. This township could be AFLIGHT. You don't know.</div>
+                    {state?.mgmtData != null ? (
+                        <div style={{width: '100%', gap: '1rem', flexWrap: 'wrap'}}>
+                            {Object.keys(state.mgmtData.townstats).map((statKey, index) => 
+                                <div style={{padding: '0.5rem', border: '1px solid #AAA'}} key={index}>{statKey}: {state.mgmtData.townstats[statKey]}</div>
+                            )}
+                        </div>
+                    ) : (<></>) }
+                </div>
+
+                <canvas style={{position: 'absolute', zIndex: '11'}} id="managementmap" width='550px' height='550px'></canvas>
+
+            </div>
+
 
 
             <div style={{position: 'fixed', width: '100vw', top: '0', left: '0', justifyContent: 'center', alignItems: 'center', height: '100vh', zIndex: '8', backgroundColor: 'hsla(240,50%,10%,0.6)', display: state?.player?.playStack?.chatventure == null ? 'none' : 'flex'}}>
                 <ChatventureContent state={state} dispatch={dispatch} sendSocketData={sendSocketData} logout={logout} />
-            </div>            
+            </div>
             <div style={{position: 'fixed', width: '100vw', top: '0', left: '0', justifyContent: 'center', alignItems: 'center', height: '100vh', zIndex: '9', backgroundColor: 'hsla(240,50%,10%,0.6)', display: state?.player?.playStack?.overlay === 'none' ? 'none' : 'flex'}}>
                 <OverlayContent state={state} dispatch={dispatch} sendSocketData={sendSocketData} logout={logout} />
             </div>
@@ -508,7 +633,7 @@ export default function MainView() {
                             {Object.keys(state?.locationData?.structs)?.map((structKey, index) => {
                                 const thisStruct = state.locationData.structs[structKey];
                                 return (
-                                    <div onClick={() => handleStructInteractionRequest(thisStruct, thisStruct.interactions.default)} style={{marginRight: '0.75rem', height: '100px', width: '100px', border: '1px solid hsl(240,50%,20%)', flexDirection: 'column', alignItems: 'center'}} key={index}>
+                                    <div onClick={() => handleStructInteractionRequest(thisStruct, thisStruct?.interactions?.default)} style={{marginRight: '0.75rem', height: '100px', width: '100px', border: '1px solid hsl(240,50%,20%)', flexDirection: 'column', alignItems: 'center'}} key={index}>
                                         <div style={{width: '100%', height: '70px', width: '70px', marginTop: '10px', backgroundColor: "#0AF"}}></div>
                                         <div style={{justifyContent: 'center', alignItems: 'center', height: '20px'}}>{state.locationData.structs[structKey].displayName}</div>
                                     </div>

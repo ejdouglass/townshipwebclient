@@ -612,36 +612,32 @@ common universal components versus rare components
 jwt smb vpu nda clf ghr M
 NOTE: can implement 'natural tile specials' in a little bit; let's focus on core capacity first
 j (jungle): 2 wood, 1 game, 1 herb
-  - wild: +1 game
-w (wood): 3 wood, 1 game
-  - wild: +1 game
-t (taiga): 3 wood, 1 game
-  - wild: +1 game
+w (wood): 2 wood, 1 game
+t (taiga): 2 wood, 1 game
+  any forest: wildwood: +1 game, weirdwood (less wood, more rare wood, very unusual occurrence)
 
-s (swamp): 1 wood, 1 herb, 1 water
+s (swamp): 1 wood, 2 herb, 1 water
 m (marsh): 2 herb, 1 water
-b (bog): 1 herb, 1 water
+b (bog): 2 herb, 1 water
 
 v (savanna): 1 wood, 1 game, 1 herb
 p (plain): 1 game, 1 herb
 u (tundra): 1 game
 
-n (dunescape): 2 mineral
-d (desert): 1 mineral, 1 stone
-a (arctic): 1 mineral
+n (dunescape): 1 ore
+d (desert): 1 ore, 1 stone
+a (arctic): 1 ore
 
 c (cruisewater): 2 water, 1 game
-  - fishy: +1 game
 l (lake): 2 water, 1 game
-  - fishy: +1 game
 f (frostwater): 1 water
 
-g (greenhill): 1 mineral, 1 stone, 1 game, 1 herb
-h (hill): 2 mineral, 1 stone
-  - loded: +1 mineral
-r (frostmound): 3 mineral, 1 stone
+g (greenhill): 1 ore, 1 stone, 1 herb
+h (hill): 1 ore, 1 stone
+r (frostmound): 1 ore, 1 stone
+  - loded: +1 ore
 
-M (mountain): 2 mineral, 2 stone
+M (mountain): 2 ore, 2 stone
 
 river adds +1 water universally, may add other mods specifically
   - river can meander through any forest, flatland, or bumpy zone; rivers can ORIGINATE from freshwater, wetland, or lakey mountain
@@ -668,10 +664,55 @@ now that we can add friends, which is great, we have "You don't KNOW ME" display
   - also, let's have allocatable squares and a TOWNSHIP ALLOCATION WINDOW of clickable tiles that highlight somehow (can drawRect, maybe? simple as can be)
 
 
+FINISHING UP:
+- newest struct ideas built (decide on class, blueprint, hybrid), KISS but keep some interest (think of costs, upgrades, etc. a bit)
+  x- struct concept locked in! NEO INIT online.
+  x- define the basics for all starter structs
+  x- finish setting up township initialization: once the township is placed, calc income based off of wps tile (and set up a fxn that derives tile income)
+  o- define a few buildable structs you can start building with (internal) and weight cost/logic -- NOTE: starting weight is 145, so base off that
+  x- start the township with some supplies, enough to start some buildin'! (slap 'em in during creation :P)
+- township management: resource gathering and assignment... probably have it 'tick' when the owner takes a look, and have overflow handling
+  - oh idea for that: map out a carefully measured array, each with a clickable div and img (or canvas if preferred), which can handle selecting/deselecting
+  - easy 7x7 grid based on local map (from locationData... port that functionality in)
+- struct building, struct upgrading, struct interfaces: basics and test drive
+- struct basics: initial tradepost offerings, plop down first class trainer (switch!), struct-spec menus, basic refining online
+- final equipment stuff: how it affects stats, maybe add cha
+  o- add cha (cha cha), be so compelling
+  o- make sure SPR is a thing rather than RES
+- finally, our FIRST ENCOUNTER (oops all slimes) complete with exp and basic loot! (don't worry right off on terrain influence on encounter rate)
+  o- walking increases chances of encounter until BOOM! encounter triggered
+  o- have a generic slime pop up and do a basic slap fight with it
+- actually finally, make sure we can't send "derpy data" to the backend; thisPlayer keeps going undefined on us, so can just kinda break
+  - may be mostly a dev problem, because things get wacky when I save files here, but worth safeguarding against nonetheless
+
+
+hmmm, dragon? whelp? a way to reposition within the tutorial world after playing a little bit?
+- yup that all sounds good but let's get the basics up and running ASAP
+
+- make sure when the game loads, all structs/mobs re-gain their structhood
+
+
+
+
 WHOOPSIE
 - slight whoops is that we don't redraw on camera change, so zoom level changing does NOT redraw until we move right now
 - also we get lots of errors if MainView has changes whilst we're in the nexus
 - adding a new friend to follow kicks back to your own township screen (due to player data overwrite), so consider adding a 'whichScreen' type optional var to check for
+- TC does NOT mobile-shrink well: almost every screen needs an overhaul in this regard, feel free to hyper-shrink where necessary
+
+LOOSE IDEA
+- we can alter the scaling of levels to be as current, but then modified by level to under-weight below a certain point and over-weight gradually after that
+  - mimicing lower levels = lower stat gains, currently it's very predictably flat across all levels
+- can we use some sort of memoization for overworld encounter rate/threat bump?
+- should we append to the tile string to indicate elevated or mitigated threat levels? should it be baked in as a variable?
+- trading post starts with a default stock, boosts certain items based on starting class (figure out how to 'deduce' that, or just hard-code it for now), and then
+    introduce a random couple boosts?
+- should we combine more basic buildings? there's NINE buildings in a starter township. feels like a lot to begin with?
+  - the well can be integrated elsewhere; gather+build+storage can combine; maybe also inn+tradepost?
+- additional world creation factors to include how chaotic, how aggressive, etc.
+
+DOOPTY
+- the only problem I just realized with equipment scaling with stats is that, absent a known 'level,' stat scaling will be a little wackadoo potentially
 
 
 */
