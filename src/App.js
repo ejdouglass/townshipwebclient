@@ -639,6 +639,8 @@ r (frostmound): 1 ore, 1 stone
 
 M (mountain): 2 ore, 2 stone
 
+... huh, does ocean even add anything? :P ... it might not, currently. whoopsiedoodle
+
 river adds +1 water universally, may add other mods specifically
   - river can meander through any forest, flatland, or bumpy zone; rivers can ORIGINATE from freshwater, wetland, or lakey mountain
 road present FROM current space TO target space (aside from enabling connections for trade, income, events, npc stuff in the future, etc.) reduce threat rise from travel
@@ -666,14 +668,16 @@ now that we can add friends, which is great, we have "You don't KNOW ME" display
 
 FINISHING UP:
 - newest struct ideas built (decide on class, blueprint, hybrid), KISS but keep some interest (think of costs, upgrades, etc. a bit)
-  x- struct concept locked in! NEO INIT online.
-  x- define the basics for all starter structs
-  x- finish setting up township initialization: once the township is placed, calc income based off of wps tile (and set up a fxn that derives tile income)
   o- define a few buildable structs you can start building with (internal) and weight cost/logic -- NOTE: starting weight is 145, so base off that
-  x- start the township with some supplies, enough to start some buildin'! (slap 'em in during creation :P)
 - township management: resource gathering and assignment... probably have it 'tick' when the owner takes a look, and have overflow handling
-  - oh idea for that: map out a carefully measured array, each with a clickable div and img (or canvas if preferred), which can handle selecting/deselecting
-  - easy 7x7 grid based on local map (from locationData... port that functionality in)
+  x- oh idea for that: map out a carefully measured array, each with a clickable div and img (or canvas if preferred), which can handle selecting/deselecting
+  x- easy 7x7 grid based on local map (from locationData... port that functionality in)
+  o- show income, slots used #, storage, and storage totals
+  o- show menu(s) for viewing, building, upgrading structs (probably a view subtab situation - Overview, Gathering, Building)
+  o- update menu to show inventory (update management info)
+    - gather slots x/y and build weight into their own sxns
+  o- start calculating township income, selling off 'extra'
+    - define WHEN we do this calculation, probably via fxn
 - struct building, struct upgrading, struct interfaces: basics and test drive
 - struct basics: initial tradepost offerings, plop down first class trainer (switch!), struct-spec menus, basic refining online
 - final equipment stuff: how it affects stats, maybe add cha
@@ -695,10 +699,13 @@ hmmm, dragon? whelp? a way to reposition within the tutorial world after playing
 
 
 WHOOPSIE
+- LOL currently nothing to guard against someone just changing your township's management by strolling in and booping around :P
 - slight whoops is that we don't redraw on camera change, so zoom level changing does NOT redraw until we move right now
 - also we get lots of errors if MainView has changes whilst we're in the nexus
 - adding a new friend to follow kicks back to your own township screen (due to player data overwrite), so consider adding a 'whichScreen' type optional var to check for
 - TC does NOT mobile-shrink well: almost every screen needs an overhaul in this regard, feel free to hyper-shrink where necessary
+- there's some sync issues where changing playStack to worldMap and back does NOT update the backend's record, so reloading the client can get... a little weird :P
+  - related: we save worldMap mode on playStack when we enter it, but not for other stuff, so a page refresh can have us doing mgmt AND worldMap at the same time, which isn't ideal
 
 LOOSE IDEA
 - we can alter the scaling of levels to be as current, but then modified by level to under-weight below a certain point and over-weight gradually after that
@@ -710,9 +717,157 @@ LOOSE IDEA
 - should we combine more basic buildings? there's NINE buildings in a starter township. feels like a lot to begin with?
   - the well can be integrated elsewhere; gather+build+storage can combine; maybe also inn+tradepost?
 - additional world creation factors to include how chaotic, how aggressive, etc.
+- population as a boost, but not an active factor? hrm
+- REFACTOR TS: buildings menu under management; 'what you can do here' menu visible (shop, exit, nexus); add 'refine building mats' to mgmt; maybe local item refine separate
+- whaaat if we removed initial classes, and have them be joined later?
+  - liking that more, level up a bit before we worry about classes, use items and gear and guile
+- ooh, we can change the encounter rate to have a 'floor' (so, NOT 1 step minimum :P), so at 1-threat-per-step, a peaceful world rolls between 20 and 100 instead?
+- COMBINE: gathering/building/(maybe refining?) all in one stat! MwaHA! choose your battles!
+x- rejigger: Crossroad (Nexus + Inn + Well), Tradehall (Tradesman + Builder + Storage + Tradepost), Tower (Pit below, Guard above?)
+- super expensive 'terraforming' concept?... slowly reshape the land, with limitations and lots of effort
+  - mostly 'deconstructive'... slowly knock a mountain down into a hill down into a flatland
+  - can later have options to forest up an area, etc., or change the tropicality
 
 DOOPTY
 - the only problem I just realized with equipment scaling with stats is that, absent a known 'level,' stat scaling will be a little wackadoo potentially
+  - back to the basics: rarity gives more chance at amps
 
+
+CURRENTLY:
+o- change gatherSlots and buildSlots (and refining) to actionSlots (BE, FE)
+  - actionSlots = gatheringCoords + refining + building (arrays all)
+  - state.mgmtData is the 'source of truth' and only changes from the BE
+  - mgmtObj is the current front-end 'hypothesis' of changes in management
+
+
+
+x- replace 'buildings' on top row of township with 'actions' (may have to rejigger township variables/locationData for this, which is fine)
+  x- createLocationData fxn FIRST, so we don't have to CTRL+F every time (just this one last time to slot this fxn in :P)
+x- shift management map to top; overlay immediately below, both absolute to create proper overlays
+o- ensure management map is displayed only in proper conditions (doesn't need to appear in Refine, for example)
+o- define and implement refine concept
+  x- define refine concept
+  x- integrate 'refineOptions' into township in same fxn that handles townstats
+  o- handle REFINING in a tab in the township management
+o- how build/upgrade?
+  o- define build object... {gps: soulName OR worldID, coords: wps, <otherData>}
+x- change 'interactions' to be township-wide, so that township interactions are from an array'd menu and not struct-specific
+o- fix township management so you can't bonk over and manage friends' townships :P
+o- adjust township management to slip into 'overview' by default, even after you close and then open again
+
+o- ideally, fix 'SAVE MANAGEMENT SETTINGS' button to be more intuitive and actually compare to state.mgmtData to see if there are changes 
+  - may be trickier than at a glance, however
+
+... what if we changed BOOP to 'target' a square, giving overview information, and then we could GATHER or BUILD <x> from a simple side-menu?
+  - NOPE! keep it distinct, BUT we can add a mgmtObj.arr extra from 'active' to 'gathering' and 'building' to highlight differently in OVERVIEW
+  - oooor... ok, hear me out. mgmtObj.activeTile for what we're currently looking at
+  - click to see overview on the side (that tile)
+    - save by index, so we know which index of the arr we're at, and we can MUCH more easily toggle GATHER and do some buildin'
+
+
+x- neo actions fixed
+o- let's focus on having first actions being SNAPPY & FAST... quick watchtower? done in minutes! first upgrades? five minutes!
+  - so first playing isn't sloggy
+  - and new world settlement isn't particularly sloggy either
+  - modify construction time of out-of-township stuff by distance AND road connectivity
+
+
+  REFINEMENT, REFINED
+      {name: 'Basic Butchery', from: {game: 1, water: 1}, into: {meat: 1, bone: 1, leather: 1}, time: 5},
+      {name: 'Prepare Wood', from: {wood: 2}, into: {timber: 1}, time: 15}
+
+  So we have the name/recipe, the from obj with the costs, the into obj with the result, and the time in minutes to complete the task
+    - the client has access to the full refineOptions array, with each such object above
+    ... so when we BOOP a REFINE A THING BUTTON, it should do... wut?
+    ideally, it calculates how many of a thing we can make, and then we can slider choose how many we want to make and it'll start it up
+    ... I'm currently thinking... hm, SHOULD we use actionSlots on refining?
+    - I slightly dislike the idea of a relatively short 'refining' process taking up a whooooole actionSlot
+    - eh, it's fine, buuuut ...
+    yeah, it's awkward having to jump around across multiple tabs to manage a singular resource
+    ... so single page seems better (again). Overview takes a lot of info, though, so still deserves its own 'page.'
+    ... default to Overview or Manage? Hhhhhnm.
+    - and where does 'building' stuff go for INTERNAL structures?
+    
+    I actually think we could potentially fit it all in one place. Just scrolling around a bit. It'd be hard on mobile, but web? PLEEENTY of room.
+
+    COLUMN UP
+    TOP: TOWNSHIP NAME (and change)
+    LEFT COLUMN: Condensed Overview... inventory + income (thus we include the zeroes now within inventory), scrollable (collapsible subsxns?) if more available
+    MIDDLE: Za Warudo... Griddy, tap-to-target (view), worst case can make the container div scrollable to see what we need to see
+      - defaults to TOWNSHIP, with TOWNSHIP BUILDY MENU on the right!
+    RIGHT COLUMN: Inspection Column... whatever you're looking at, can get more info here
+
+    where does REFINE come in? HRM
+      ... probably on the left? add a REFINE boopy that opens up its own sub-menu?
+      ... we can add an 'auto-collect' default where, when done with building/refining, the free slot goes back to gathering
+      ... alternatively, we could implement some sort of 'build queue' which... eh at this stage seems like far too much, so yeah, just pop in and handle it ;P
+      ... we'll implement a very lazy 'auto-collect' at first (basically random) and later can pick "most materials gained" option from free tiles
+    
+      OK! REFACTOR-AGA
+
+      ... so, how to implement REFINE and BUILD/UPGRADE?
+      - REFINE OPTIONS:
+      a) do a modal that gives refine options, then go crazy-crazy
+      b) click a thing to refine FROM on the left, then little menu lives there
+        ... oh since refining is 'global' as well, we can have structs enhance refining SPEED and EFFICIENCY (more yield per raw material), maybe even CRIT (rare materials)
+      - theoretically can reduce costs, too, but that might be a bit much for now
+      ... this all speaks to a resource -> product refining concept, which I'm ok with overall
+        - NEW ADDITION TO REFINE OBJ: 
+        currently name, from, into, time; ADD 'resource' so 'ore' gives you the metal options, 'wood' the timber options, etc.
+      - BUILD IDEA:
+      modal again, click the thing on the right to see its details (so still need structs and upgrade data), bring up a menu to say HI HERE ARE THINGS YOU CAN DO HERE
+        - and description woo
+        OK so we have a SUPER MODAL that has TYPING (type is passed in upon opening modal)
+        - what else? let's spitball in the modal fxn
+
+
+
+      HOW TO UPGRADE OR BUILD
+      building: 
+        - add a "+ Build New Structure" button to top
+        - where/what blueprints are available?
+        - eh, have it be fixed to township level & soul memories/data
+        - the capacity to add more buildings comes from UPGRADES
+        - wanna grow your town? each level requires a certain amount of building, upgrading, and/or food?
+
+
+      upgrading:
+        - main "level" upgrades cost substantial resources plus time and money; specializations cost little to no general resources, maybe some special/rare resources, and time+money
+        - each spec eats into the 'specWeight' of the struct, can require other specs, and some require overall level or other structs/conditions to be met to unlock
+        - specs COULD get a bit more expensive per, based on specWeight; maybe only in terms of time & money?
+        - now, how to CODE it?
+        
+
+      special:
+        - right now, this is the 'shops'/wares sxn
+        - thinking adding 'stuff' to shops gains specific options? like adding lots of leather levels up leather gear?
+        - AND/OR specific upgrades expand inventory in specific ways
+        - hm, well, since shopping is township-wide, I suppose wares object can be, too; specific structs can contribute to what's going on
+        - BLACKSMITH: + metal weapons/armors, + metalAmp
+        - so, township.wares for shopping? makes sense, I suppose
+        - okidokie, let's go add WARES... done
+        - so! wares are pulled from individual structs, upgraded specially from specializations, woo boy
+
+  
+    ooh struct SPECIAL ACTIONS such as events... HOST BREW PARTY at the Crossroad for a beer/food (and actionSlot?) cost, gain special effects
+      - some can be seasonal/conditional
+    
+    how to handle 'township level up' concept as well as population... or is level = population, Civ1 style?
+      - population -> actionSlots conversion logic?
+      - 1 for 1, make it easy; township level = population = actionSlots (2 + level by default; we can have more with other modifiers from other structs, the way we have it townstatted)
+
+    I have re-decided that TURN-BASED COMBAT is the way to go, with some caveats to keep it crispy. Starkly limited 'wait times' is part of it. :P
+
+    Also, currently refining isn't listed conveniently anywhere; since it's ongoing, having "timber + x.xx/hr" would be super handy
+    - and later on, being able to assign multiple 'points'/population to refining to amplify the effect 1-to-1
+    - listing the number of refiners active in mgmt screen would be lovely... builders, too, and being able to assign more of them
+    - gatherers are still limited to 1/tile, and we can think about how to expand on that later (to be fair, the game DOES offer 48 potential gathering squares :P)
+
+
+    HOW UPGRADE STRUCTS
+    - I suppose just an object containing the upgrade list/logic based on the struct.type
+    - obj or arr? ... probably arr, and filter?
+
+  !!! - beware! currently the 'township drawing' logic is just checking the 'building present' slot [3] for being NOT 0... both main ctx drawing sxns use this logic
 
 */

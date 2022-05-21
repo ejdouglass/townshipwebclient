@@ -10,6 +10,7 @@ export default function MainView() {
     const [WPSInfo, setWPSInfo] = useState(``);
     const [chatMessage, setChatMessage] = useState('');
     const [potentialFriendArray, setPotentialFriendArray] = useState([]);
+    const [mgmtObj, setMgmtObj] = useState({arr: [], modal: null, incomes: {Wood: 0}, inventory: {}, mode: 'omni', viewTile: null, viewDetails: {}});
     const messageEndRef = useRef(null);
     const chatRef = useRef(null);
 
@@ -57,12 +58,7 @@ export default function MainView() {
         // so the below would become a socket instead
         if (state?.locationData?.name === 'Zenithica') return;
         return sendSocketData({soul: state.locationData.name}, 'view_township_management');
-        return dispatch({type: actions.OPEN_TOWNSHIP_MENU});
     }
-
-    // function requestAMap() {
-    //     return sendSocketData({mapRequest: true}, 'request_a_map');
-    // }
 
     function moveCharacter(direction) {
         // eventually the socket will be involved, but for now...
@@ -94,7 +90,13 @@ export default function MainView() {
     function handleStructInteractionRequest(structToInteract, interaction) {
         if (interaction == null) return;
         if (interaction === 'nexus') return visitNexus();
-        return sendSocketData({structToInteract: structToInteract, interaction: interaction}, 'interact_with_struct');
+        return sendSocketData({soulTarget: structToInteract.soulRef, interaction: interaction}, 'interact_with_struct');
+    }
+
+    function handleInteractionRequest(interaction) {
+        if (interaction == null) return;
+        if (interaction === 'nexus') return visitNexus();
+        return sendSocketData({soulTarget: state?.locationData?.name, interaction: interaction}, 'interact_with_struct');
     }
 
     function handleKeyInput(e) {
@@ -115,6 +117,236 @@ export default function MainView() {
                 return moveCharacter({x: -1});
             default: return;
         }
+    }
+
+    // function toggleMgmtTile(tileObj, index) {
+    //     // tileObj is coord: [x,y] and active: bool
+        
+    //     if (tileObj.coord[0] === state.mgmtData.wps[0] && tileObj.coord[1] === state.mgmtData.wps[1]) return;
+        
+    //     let totalActiveTiles = 0;
+    //     mgmtObj.arr.forEach(tileObject => {
+    //         if (tileObject.gathering) totalActiveTiles += 1
+    //     });
+    //     // right now this is very 'gathering'-heavy, but we have the means now in the mgmtObj to track building and refining
+    //     // mgmtObj is 'proposed' actions, while state.mgmtData is 'actual' actions currently implemented
+    //     const slotsUsed = 0;
+    //     // console.log(`Current number of active tiles BEFORE processing this click is ${totalActiveTiles}`);
+    //     if (mgmtObj.arr[index].gathering === false && totalActiveTiles === state.mgmtData.townstats.actionSlots) return alert(`Woop, you're at gathering capacity, unclick some first.`);
+
+    //     let newMgmtArr = [...mgmtObj.arr];
+    //     newMgmtArr[index] = {...newMgmtArr[index], gathering: !newMgmtArr[index].gathering};
+    //     return setMgmtObj({...mgmtObj, arr: [...newMgmtArr]});
+    // }
+
+    function openModal(type) {
+        /*
+        
+            okdok
+
+            so we have TYPE of modal:
+            - 'refine'
+            - 'struct'
+            ... and mmmmmaybe township settings?
+        
+        */
+        return setMgmtObj({...mgmtObj, modal: {type: type}});
+    }
+
+    function toggleRefining(refineOptObj) {
+        /*
+        
+            OK! REFINING!
+            - check for available actionSlots (which we just don't do anywhere anyhow currently, whoops)
+            we're concerned with our total in mgmtObj.townstats.actionSlots as our 'limiter'
+            I like the idea of auto-unassign eventually but that's not critical right now
+
+            what's it look like in mgmtObj? that's our local ref, so one sec...
+            gatherNow is our number of current gatherers, and we just grab the building and refining arrays [...] style
+                - so gatherNow, building.length, and refining.length
+
+            assuming we're clear on personnel reqs, what then:
+
+            gotta SOCKETTOME (sendSocketData) with the new management data... hrm, how do we do it for gathering?
+            AHA! saveManagementSettings() gets us all set up... sort of.
+
+            right now, it ONLY applies to gatheringCoords. we want the whoooole mgmtObj... well, the current passed stuff plus refining and building
+
+            OK! management saving is improved, I believe, so we just need to update mgmtObj.refining
+        
+        */
+
+
+            // ah, HERE'S the problem! I check if we're at max and then just don't do any sort of TOGGLE LOGIC. it's one-way, adding only. whoops.
+        let currentlyRefiningThis = false;
+        let newMgmtObj = {};
+        if (state.mgmtData.refining.indexOf(refineOptObj.name) > -1) currentlyRefiningThis = true;
+        if (currentlyRefiningThis === false) {
+            const currentSlotsUsed = mgmtObj.gatherNow + mgmtObj.building.length + mgmtObj.refining.length;
+            const maxSlots = state.mgmtData.townstats.actionSlots;
+            if (currentSlotsUsed >= maxSlots) return alert(`Clear up some PERSONNEL!`);
+            newMgmtObj = {...mgmtObj, refining: [...mgmtObj.refining, refineOptObj.name]};
+        } else {
+            newMgmtObj = {...mgmtObj, refining: mgmtObj.refining.filter(refineString => refineString !== refineOptObj.name)};
+        }
+
+        // The backend will be sending us new mgmtData shortly... hm, so dunno if we should set it now here, as well
+        setMgmtObj(newMgmtObj);
+
+
+        // console.log(`Oh good you want to start crafting via the recipe of ${refineOptObj.name}`);
+
+        return saveManagementSettings(newMgmtObj);
+    }
+
+    function viewMgmtTile(tileObj, index) {
+        // we should probably set the information on the TILEVIEW here, eh?
+        // mgmtObj.viewTile and mgmtObj.viewDetails
+        if (tileObj.coord[0] === mgmtObj.viewTile[0] && tileObj.coord[1] === mgmtObj.viewTile[1]) return console.log(`Already viewing that tile!`);
+        const newViewTile = [tileObj.coord[0], tileObj.coord[1]];
+        let newViewDetails = {type: ``, name: ``, list: []};
+        if (tileObj.coord[0] === state.mgmtData.wps[0] && tileObj.coord[1] === state.mgmtData.wps[1]) {
+            newViewDetails = {type: 'myTownship', name: `Your Township!`, list: Object.keys(state.locationData.structs).map(structKey => state.locationData.structs[structKey])}
+        } else {
+            // gotta figure out NAME from the tilecode[0] via map and applicable list from tilecode[not0] stuff
+            let contextList = [];
+            let infoText = ``;
+            switch (state.map[tileObj.coord[0]][tileObj.coord[1]][0]) {
+                case 'j': {
+                    infoText = `Jungle: +2 wood, +1 game, +1 vegetation`;
+                    break;
+                }
+                case 'w': {
+                    infoText = `Wood: +2 wood, +1 game`;
+                    break;
+                }
+                case 't': {
+                    infoText = `Taiga: +2 wood, +1 game`;
+                    break;
+                }
+                case 's': {
+                    infoText = `Swamp: +1 wood, +1 water, +2 vegetation`;
+                    break;
+                }
+                case 'm': {
+                    infoText = `Marsh: +1 water, +2 vegetation`;
+                    break;
+                }
+                case 'b': {
+                    infoText = `Bog: +1 water, +2 vegetation`;
+                    break;
+                }
+                case 'v': {
+                    infoText = `Savanna: +1 wood, +1 game, +1 vegetation`;
+                    break;
+                }
+                case 'p': {
+                    infoText = `Plain: +1 game, +1 vegetation`;
+                    break;
+                }
+                case 'u': {
+                    infoText = `Tundra: +1 game`;
+                    break;
+                }
+                case 'n': {
+                    infoText = `Dunescape: +1 ore`;
+                    break;
+                }
+                case 'd': {
+                    infoText = `Desert: +1 ore, +1 stone`;
+                    break;
+                }
+                case 'a': {
+                    infoText = `Arctic: +1 ore`;
+                    break;
+                }
+                case 'c': {
+                    infoText = `Cruisewater: +2 water, +1 game`;
+                    break;
+                }
+                case 'l': {
+                    infoText = `Lake: +2 water, +1 game`;
+                    break;
+                }
+                case 'f': {
+                    infoText = `Frostwater: +1 water`;
+                    break;
+                }
+                case 'g': {
+                    infoText = `Greenhill: +1 ore, +1 stone, +1 vegetation`;
+                    break;
+                }
+                case 'h': {
+                    infoText = `Hill: +1 ore, +1 stone`;
+                    break;
+                }
+                case 'r': {
+                    infoText = `Frostmound: +1 ore, +1 stone`;
+                    break;
+                }
+                case 'M': {
+                    infoText = `Mountain: +2 ore, +2 stone`;
+                    break;
+                }
+                default: {
+                    infoText = `Mystery Water: ???`;
+                    break;
+                }
+            }
+            newViewDetails = {type: 'tile', name: `Land Tile`, info: infoText, list: [tileObj.gathering ? `Stop Gathering` : `Gather`, ...contextList], index: index};
+        }
+        setMgmtObj({...mgmtObj, viewTile: newViewTile, viewDetails: {...newViewDetails}});
+    }
+
+    function handleTileAction(listItem) {
+        // plenty of DERIVING POWER from mgmtObj.viewTile, mgmtObj.viewDetails, plus the passed listItem itself
+        // mostly want to be able to boop and unboop gatherings right now
+
+        // ADD: not letting us add infinite gatherers :P
+        switch (mgmtObj.viewDetails.type) {
+            case 'myTownship': return;
+            case 'tile': {
+                // aha! now we have INDEX from the fxn above, which is very helpful!
+                console.log(`We wish to ${listItem}`)
+                if (listItem === 'Gather' || listItem === 'Stop Gathering') {
+                    let gatherChange = 0;
+                    let newMgmtArr = [...mgmtObj.arr];
+                    if (listItem === 'Gather') {
+                        const currentSlotsUsed = mgmtObj.gatherNow + mgmtObj.building.length + mgmtObj.refining.length;
+                        const maxSlots = state.mgmtData.townstats.actionSlots;
+                        gatherChange = 1;
+                        if (currentSlotsUsed >= maxSlots) return alert(`You've already stretched your township's personnel too thin. Clear up some actions first!`);
+                    } else gatherChange = -1;
+                    newMgmtArr[mgmtObj.viewDetails.index] = {...newMgmtArr[mgmtObj.viewDetails.index], gathering: !newMgmtArr[mgmtObj.viewDetails.index].gathering};
+                    const newList = mgmtObj.viewDetails.list.map(listItem => {
+                        if (listItem === 'Gather') return 'Stop Gathering';
+                        if (listItem === 'Stop Gathering') return 'Gather';
+                    });
+                    console.log(`GatherChange should be ${gatherChange}`);
+                    return setMgmtObj({...mgmtObj, arr: [...newMgmtArr], viewDetails: {...mgmtObj.viewDetails, list: [...newList]}, gatherNow: mgmtObj.gatherNow + gatherChange});
+                }
+
+                // HERE: building options, prob'ly
+
+            }
+            default: return;
+        }
+    }
+
+    function saveManagementSettings(optionalServerObj) {
+        let newGatheringCoords = [];
+        mgmtObj.arr.forEach(tileObject => {
+            if (tileObject.gathering) newGatheringCoords.push(tileObject.coord);
+        });
+        
+
+        if (optionalServerObj != null && optionalServerObj.type == null) {
+            console.log(`BEHOLD our new REFINING: ${optionalServerObj.refining}`)
+            console.log(`More broadly, our optional server obj: `, optionalServerObj)
+            return sendSocketData({newGatheringCoords: newGatheringCoords, newRefining: [...optionalServerObj.refining], newBuilding: [...optionalServerObj.building]}, 'update_management_data');
+        }
+
+        return sendSocketData({newGatheringCoords: newGatheringCoords, newRefining: [...mgmtObj.refining], newBuilding: [...mgmtObj.building]}, 'update_management_data');
     }
 
     useEffect(() => {
@@ -210,6 +442,8 @@ export default function MainView() {
     useEffect(() => {
         let myWalkingGuy;
         if (state?.map != null && state.player.playStack.mode === 'worldMap') {
+            // yeah, some hinky shenanigans can occur if we REFRESH and the game 'remembers' us (on loading from backend) as being in worldMap mode :P
+            // console.log(`Oh, we're in WORLD MAP MODE, here we goooo!`);
             let canvas = document.getElementById('worldmap');
             let ctx = canvas.getContext('2d');
             ctx.clearRect(0,0,550,550);
@@ -438,17 +672,16 @@ export default function MainView() {
 
     useEffect(() => {
         // !MHRmgmtmap
-        if (state?.mgmtData != null && state?.map != null) {
-            return;
-            let canvas = document.getElementById('managementmap');
-            let ctx = canvas.getContext('2d');
-            ctx.clearRect(0,0,550,550);
+        if (state?.mgmtData != null && state?.map != null && state?.player?.playStack?.mode === 'township_management') {
+            let drawing = true;
+
+            // hm, if we're adding 'drawing' to the whole thing then... drawing is always true :P
+            // if (mgmtObj.mode === 'gather') drawing = true;
+            
+            
+            // let ctx = canvas.getContext('2d');
+            // ctx.clearRect(0,0,550,550);
             let mapWidth = state?.map[0].length;
-            let tileSize = Math.round(550 / state.mapCamera.width);
-
-
-            // 16px at a time currently
-            // tileRef is essentially a proto-atlas
             // jwt smb vpu nda clf ghr M
             let atlasSourceSize = 16;
             const tileRef = {
@@ -483,42 +716,109 @@ export default function MainView() {
             const tilemapIMG = new Image();
             tilemapIMG.src = tilemap;
             const townshipIMG = new Image();
-            townshipIMG.src = townshipTile;
+            townshipIMG.src = townshipTile;                
+            
+
+            let tileSize = Math.round(550 / 7);
+            
+            let mgmtObjProto = {arr: []};
+            
+
+            // we're in MANAGEMENT MODE! time to define everything we need for display.
+            // new mgmtObj exists now, hurrah
+            // so we need to redefine our incomes
+            let incomes = {};
+            const inc = state.mgmtData.townstats;
+            incomes.wood = inc.woodIncome;
+            incomes.ore = inc.oreIncome;
+            incomes.stone = inc.stoneIncome;
+            incomes.game = inc.gameIncome;
+            incomes.water = inc.waterIncome;
+            incomes.veg = inc.vegIncome;
+            incomes.commerce = inc.commerce;
+            
+            mgmtObjProto.incomes = {...incomes};
+            
+            // eh we can ignore the amps for now, but we'll slot them in here in a bit
+            let rates = {};
+
+            let inventory = {...state.mgmtData.inventory};
+            
+
+            mgmtObjProto.inventory = {...inventory};
+
+            let storageUsed = 0;
+            Object.keys(inventory).forEach(inventoryKey => {
+                storageUsed += inventory[inventoryKey];
+            });
+
+            mgmtObjProto.storageUsed = storageUsed;
+            mgmtObjProto.storageMax = inc.storage;
+            
+            mgmtObjProto.actionMax = inc.actionSlots;
+
+            mgmtObjProto.building = [...state?.mgmtData?.building];
+            mgmtObjProto.refining = [...state?.mgmtData?.refining];
 
   
             // currently hard-coding the 7x7 that is management window, though we may eventually move to a dynamically defined mapCamera in this case, as well
-            /*
-            
-            Let's think about the elements of mgmtData we want/need here
-                - we definitely want to swap the wps for the GPS coords of the township
-                - ok! state.mgmtData.wps is now a thing. roll out!
 
-            Next up, we're definitely gonna have to make some clicky-divs, soooo we might not actually do a canvas after all. :P
-                - but we can still brainstorm here
+            let derivedMgmtArr = [];
+            // buildingCheckerObj as well? hmm
+            let gatheringCheckerObj = {};
+            let buildingCheckerObj = {};
+            if (state.mgmtData.gatheringCoords.length > 0) {
+                state.mgmtData.gatheringCoords.forEach(gathCoord => gatheringCheckerObj[`${gathCoord[0]},${gathCoord[1]}`] = true);
+                state.mgmtData.building.forEach(buildObj => buildingCheckerObj[`${buildObj.coords[0]},${buildObj.coords[1]}`] = true);
+            }
             
-            */
+            let numActiveGathers = 0;
+            if (mgmtObj.viewTile == null) {
+                mgmtObjProto.viewTile = [...state.mgmtData.wps];
+                mgmtObjProto.viewDetails = {
+                    type: `myTownship`,
+                    name: `Your Township!`,
+                    info: ``,
+                    index: 24,
+                    list: Object.keys(state.locationData.structs).map(structKey => state.locationData.structs[structKey]),
+                }
+            }
+
             for (let y = 0; y < 7; y++) {
                 for (let x = 0; x < 7; x++) {
                     // HERE: extra spot-inference logic for the coming x and y, rerouting them across the map if necessary
-                    let xToDraw = state.player.playStack.wps[0] - Math.floor(7 / 2) + x;
+                    let xToDraw = state.mgmtData.wps[0] - Math.floor(7 / 2) + x;
                     if (xToDraw < 0) xToDraw = mapWidth + xToDraw;
                     if (xToDraw > mapWidth - 1) xToDraw = xToDraw - mapWidth;
                     xToDraw = Math.round(xToDraw);
-                    let yToDraw = state.player.playStack.wps[1] - Math.floor(7 / 2) + y;
+                    let yToDraw = state.mgmtData.wps[1] - Math.floor(7 / 2) + y;
                     if (yToDraw < 0) yToDraw = mapWidth + yToDraw;
                     if (yToDraw > mapWidth - 1) yToDraw = yToDraw - mapWidth;
                     yToDraw = Math.round(yToDraw);
-                    // drawing 15, 15 from the source helps mitigate visual tiling, at the cost of losing 1/16th of the right and bottom edges of the source tiles
-                    // will have to do some SCIENCE to figure out if it's the app I'm using to pixel or just the math in this drawing section
-                    ctx.drawImage(tilemapIMG, tileRef[state?.map[xToDraw][yToDraw][0]], 0, 15, 15, Math.round(x * tileSize), Math.round(y * tileSize), tileSize, tileSize);
-                    if (state?.map[xToDraw][yToDraw][3] !== '0') {
-                        // I think I did x16 sizing, so we'll do 16 * 16 on the source file to see if that draws it well enough
-                        ctx.drawImage(townshipIMG, 0, 0, 16 * 16, 16 * 16, Math.round(x * tileSize), Math.round(y * tileSize), tileSize, tileSize);
+                    let isGathering = false;
+                    if (gatheringCheckerObj[`${xToDraw},${yToDraw}`] != null) isGathering = true;
+                    if (isGathering) numActiveGathers++;
+                    derivedMgmtArr.push({coord: [xToDraw, yToDraw], gathering: isGathering, building: false});
+                    if (drawing) {
+                        let ctx = document.getElementById('managementmap').getContext('2d');
+                        ctx.drawImage(tilemapIMG, tileRef[state?.map[xToDraw][yToDraw][0]], 0, 15, 15, Math.round(x * tileSize), Math.round(y * tileSize), tileSize, tileSize);
+                        if (state?.map[xToDraw][yToDraw][3] !== '0') {
+                            // I think I did x16 sizing, so we'll do 16 * 16 on the source file to see if that draws it well enough
+                            ctx.drawImage(townshipIMG, 0, 0, 16 * 16, 16 * 16, Math.round(x * tileSize), Math.round(y * tileSize), tileSize, tileSize);
+                            // hax :P
+
+                        }
                     }
                 }
-            }            
+            }
+
+            mgmtObjProto.gatherNow = numActiveGathers;
+
+            // so we have gatherNow, as well as building.length and refining.length to figure out total number of actionSlots being used
+
+            return setMgmtObj({...mgmtObj, ...mgmtObjProto, arr: [...derivedMgmtArr]});
         }
-    }, [state?.mgmtData]);
+    }, [state?.mgmtData, mgmtObj.mode]);
 
 
 
@@ -570,20 +870,183 @@ export default function MainView() {
 
             {/* THIS: Township Management Window */}
             <div style={{position: 'fixed', width: '100vw', top: '0', left: '0', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', zIndex: '8', backgroundColor: 'hsla(240,50%,10%,0.6)', display: (state?.mgmtData !== null) ? 'flex' : 'none'}}>
-                <div style={{width: '90vw', height: '90vh', overflow: 'scroll', flexDirection: 'column', padding: '0.75rem', alignItems: 'center', backgroundColor: 'white'}}>
+                <div style={{width: '90vw', position: 'relative', height: '90vh', overflow: 'scroll', flexDirection: 'column', padding: '0.75rem', alignItems: 'center', backgroundColor: 'white'}}>
+                    <button onClick={() => dispatch({type: actions.DISMISS_MANAGE_MODE})} style={{position: 'absolute', top: '0.25rem', left: '0.25rem'}}>X</button>
                     <div>Your township, sire or siress!</div>
-                    <div>Wealth: {state?.mgmtData?.wealth || 0} ... Build Weight: {state?.mgmtData?.weight}</div>
-                    <div>I am MAP. Boop boop. I mean, if you HAVE a map. ({state?.map != null ? `You do.` : `You don't, though.`}) It's possible not to have a map. This township could be AFLIGHT. You don't know.</div>
+
+                    <button onClick={saveManagementSettings}>SAVE MANAGEMENT SETTINGS</button>
+
+                    {mgmtObj.modal != null &&
+                    <div style={{position: 'fixed', top: '0', left: '0', width: '100vw', height: '100vh', backgroundColor: 'hsla(255,85%,15%,0.7)', zIndex: '15', justifyContent: 'center', alignItems: 'center'}}>
+                        <div style={{position: 'absolute', width: '80%', height: '80%', backgroundColor: 'white', zIndex: '16'}}>
+                            <button onClick={() => setMgmtObj({...mgmtObj, modal: null})} style={{position: 'absolute', top: '0.5rem', left: '0.5rem'}}>Back</button>
+
+                            {mgmtObj.modal.type === 'refine' &&
+                                <div style={{width: '100%', flexDirection: 'column', alignItems: 'center', padding: '0.75rem', overflow: 'scroll'}}>
+                                    Let's be refined, shall we? Mmm yes, indubitably.
+                                    {state.mgmtData.refineOptions.map((refineOpt, index) =>
+                                        <div style={{width: '90%', position: 'relative', flexDirection: 'column', padding: '0.5rem', margin: '0.3rem', borderRadius: '0.25rem', border: '1px solid hsla(240,90%,10%,0.8)'}} key={index}>
+                                            <div>{refineOpt.name}</div>
+                                            <div style={{margin: '0.25rem'}}>From: [{Object.keys(refineOpt.from).map((sourceMat, index) => <div style={{margin: '0 0.25rem'}} key={index}>{sourceMat} x {refineOpt.from[sourceMat]}</div>)}] </div>
+                                            <div style={{margin: '0.25rem'}}>Into: [{Object.keys(refineOpt.into).map((finalMat, index) => <div style={{margin: '0 0.25rem'}} key={index}>{finalMat} x {refineOpt.into[finalMat]}</div>)}]</div>
+                                            <div style={{margin: '0.25rem'}}>Time Per: {refineOpt.time} min.</div>
+                                            <button onClick={() => toggleRefining(refineOpt)} style={{position: 'absolute', bottom: '0.25rem', right: '0.25rem', padding: '0.5rem', borderRadius: '0.25rem'}}>{mgmtObj.refining.indexOf(refineOpt.name) > -1 ? `Stop Craft` : `Craft!`}</button>
+                                        </div>
+                                        
+                                    )}
+                                </div>
+                            }
+
+
+                        </div>
+                    </div>
+                    }
+
+
+                    {/* NOTE: this all works ok because everything is FIXED at 550px for the canvas(es)... at some point we're gonna have to dynamically resize, so this will have to change */}
+                    {/* NOTE ALSO: this woooorks, but it's a bit sluggish due to shenanigans :P... we should consider going ahead to speed it back up again */}
+                    {/* <div style={{display: mgmtObj.mode === 'gather' ? 'flex' : 'none', position: 'relative', width: '550px', height: '550px', flexDirection: 'row', flexWrap: 'wrap'}}> */}
+                        
+                    {/* OMNI DIV */}
+                    <div style={{position: 'relative', width: '100%', flexDirection: 'row'}}>
+                            {/* LEFT COLUMN: overview, income, and REFINE boops */}
+                            <div style={{flexDirection: 'column', width: '20%'}}>
+                                <div>[ Overview ]</div>
+                                <div>Storage: {Math.floor(mgmtObj.storageUsed)} / {mgmtObj.storageMax}</div>
+                                <div>Wealth: {Math.floor(state?.mgmtData?.wealth)}</div>
+                                <button onClick={() => openModal('refine')}>Refine!</button>
+                                {Object.keys(mgmtObj?.inventory).map((invKey, index) =>
+                                    <div style={{display: mgmtObj.inventory[invKey] > 0 ? 'flex': 'none', width: '100%', border: '1px solid #AAA', padding: '0.5rem'}} key={index}>{invKey}: {Math.floor(mgmtObj.inventory[invKey])} {mgmtObj.incomes[invKey] > 0 ? `(+ ${mgmtObj.incomes[invKey]}/hr)` : ``}</div>
+                                )}
+                            </div>
+
+                            {/* MIDDLE COLUMN: mapsicles */}
+                            <div style={{position: 'relative', overflow: 'scroll', width: '60%', minHeight: '550px', justifyContent: 'center'}}>
+                                <div style={{zIndex: '12', position: 'absolute', flexWrap: 'wrap', width: '550px', height: '550px'}}>
+                                    {mgmtObj.arr.map((mgmtTile, index) => (
+                                        <div onClick={() => viewMgmtTile(mgmtTile, index)} key={index} style={{width: 'calc(550px / 7)', height: 'calc(550px / 7)', boxSizing: 'border-box', border: (mgmtTile.coord[0] === mgmtObj.viewTile[0] && mgmtTile.coord[1] === mgmtObj.viewTile[1]) ? '2px solid white' : '1px solid black', backgroundColor: mgmtTile.gathering ? 'hsla(120,30%,90%,0.5)' : 'transparent', zIndex: '12'}}></div>
+                                    ))}
+                                </div>                        
+                            
+
+                                <canvas id="managementmap" width='550px' height='550px' style={{zIndex: '11', position: 'absolute'}} ></canvas>
+                            </div>
+
+                            {/* RIGHT COLUMN: inspection area - details on what we're lookin' at plus actionables for that tile/context */}
+                            <div style={{flexDirection: 'column', width: '20%'}}>
+                                <div>[ {mgmtObj?.viewDetails?.name} ]</div>
+                                <div>{mgmtObj?.viewDetails?.info}</div>
+                                {mgmtObj?.viewDetails?.type === 'myTownship' &&
+                                    <div style={{flexDirection: 'column', width: '100%'}}>
+                                        {mgmtObj?.viewDetails?.list?.map((listItem, index) => 
+                                            <button style={{marginBottom: '0.5rem'}} key={index}>{listItem?.displayName}</button>
+                                        )}
+                                    </div>
+                                }
+                                {mgmtObj?.viewDetails?.type === 'tile' &&
+                                    <div style={{flexDirection: 'column', width: '100%'}}>
+                                        {mgmtObj?.viewDetails?.list?.map((listItem, index) => 
+                                            <button onClick={() => handleTileAction(listItem)} style={{marginBottom: '0.5rem'}} key={index}>{listItem}</button>
+                                        )}
+                                    </div>
+                                }
+
+                            </div>
+
+                    </div>
+                    
+                    {/* </div> */}
+                    
+
+                    {/*
+                        THIS: mgmt tile overlay; wrap in a div specific to each scenario below, take it out of the flow along with canvas above, and line 'em up
+               
+                    */}
+
                     {state?.mgmtData != null ? (
-                        <div style={{width: '100%', gap: '1rem', flexWrap: 'wrap'}}>
-                            {Object.keys(state.mgmtData.townstats).map((statKey, index) => 
-                                <div style={{padding: '0.5rem', border: '1px solid #AAA'}} key={index}>{statKey}: {state.mgmtData.townstats[statKey]}</div>
-                            )}
+                        <div>
+
+                            { mgmtObj.mode === 'overview' && 
+                            <div style={{flexDirection: 'column'}}>
+                                    Hourly Income:
+                                    <div style={{flexDirection: 'row', flexWrap: 'wrap'}}>
+                                        {
+                                            Object.keys(mgmtObj.incomes).map((incKey, index) =>
+                                                <div style={{width: '50%', padding: '0.5rem', border: '1px solid #AAA'}} key={index}>{incKey}: {Math.floor(mgmtObj.incomes[incKey])}</div>
+                                            )
+                                        }
+                                    </div>
+                                    <div>Total Township Actions Available: {state?.mgmtData?.townstats?.actionSlots}</div>
+                                    <div>Gathering Slots Used: {mgmtObj.gatherNow}</div>
+                                    <div>Building Slots Used: {mgmtObj?.building?.length}</div>
+                                    <div>Refining Slots Used: {mgmtObj?.refining?.length}</div>
+                                    <div>Inventory: {Math.floor(mgmtObj.storageUsed)} / {mgmtObj.storageMax}</div>
+                                    <div style={{flexDirection: 'row', flexWrap: 'wrap', width: '500px'}}>
+                                        {Object.keys(mgmtObj?.inventory).map((invKey, index) =>
+                                            <div style={{display: mgmtObj.inventory[invKey] > 0 ? 'flex': 'none', width: '50%', border: '1px solid #AAA', padding: '0.5rem'}} key={index}>{invKey}: {Math.floor(mgmtObj.inventory[invKey])}</div>
+                                        )}
+
+                                    </div>
+                                    <div>Wealth: {Math.floor(state?.mgmtData?.wealth) || 0}</div>
+                                    <div>Build Capacity: {state?.mgmtData?.weight} / 5</div>
+                            </div>
+                            }
+
+                            { mgmtObj.mode === 'gather' && 
+                            <div style={{width: '100%', gap: '1rem', flexWrap: 'wrap', alignItems: 'center'}}>
+
+                                Current Incomes: 
+                                {
+                                    Object.keys(mgmtObj.incomes).map((incKey, index) =>
+                                        <div style={{padding: '0.5rem', border: '1px solid #AAA'}} key={index}>{incKey}: {mgmtObj.incomes[incKey]}</div>
+                                    )
+                                }
+                                <br/>
+                                Proposed Incomes: ???
+                                <br/>
+                                <div style={{flexDirection: 'column'}}>
+                                    <div>Gathering Slots Used: {mgmtObj.gatherNow}</div>
+                                    <div>Storage Used: {Math.floor(mgmtObj.storageUsed)} / {mgmtObj.storageMax}</div>
+                                </div>
+
+
+
+                            </div>
+                            }
+
+                            { mgmtObj.mode === 'refine' && 
+                            <div style={{width: '100%', flexWrap: 'wrap', alignItems: 'center'}}>
+
+                                
+                                {state?.mgmtData?.refineOptions?.map((refOption, index) => 
+                                    <button style={{marginRight: '0.5rem'}} key={index}>{refOption.name}</button>
+                                )}
+
+
+
+                            </div>
+                            }
+
+                            { mgmtObj.mode === 'build' && 
+                            <div style={{width: '100%', flexWrap: 'wrap', alignItems: 'center'}}>
+
+                                
+                                I AM BUILD MENU. Or am I? Not really, I suppose. STRUCTS!
+
+
+
+                            </div>
+                            }                            
+
+
+
                         </div>
                     ) : (<></>) }
-                </div>
 
-                <canvas style={{position: 'absolute', zIndex: '11'}} id="managementmap" width='550px' height='550px'></canvas>
+
+
+                    
+                </div>
 
             </div>
 
@@ -630,7 +1093,7 @@ export default function MainView() {
                 
                     <div style={{width: '100%', padding: '0.75rem', borderBottom: '1px solid hsl(240,90%,10%)', maxHeight: '20vh', flexDirection: 'column', border: '1px solid aqua'}}>
                         <div style={{width: '100%', flexWrap: 'wrap'}}>
-                            {Object.keys(state?.locationData?.structs)?.map((structKey, index) => {
+                            {/* {Object.keys(state?.locationData?.structs)?.map((structKey, index) => {
                                 const thisStruct = state.locationData.structs[structKey];
                                 return (
                                     <div onClick={() => handleStructInteractionRequest(thisStruct, thisStruct?.interactions?.default)} style={{marginRight: '0.75rem', height: '100px', width: '100px', border: '1px solid hsl(240,50%,20%)', flexDirection: 'column', alignItems: 'center'}} key={index}>
@@ -638,7 +1101,10 @@ export default function MainView() {
                                         <div style={{justifyContent: 'center', alignItems: 'center', height: '20px'}}>{state.locationData.structs[structKey].displayName}</div>
                                     </div>
                                 )
-                        })}
+                            })} */}
+                            {state?.locationData?.interactions?.map((interaction, index) => 
+                                <button style={{marginRight: '0.5rem'}} onClick={() => handleInteractionRequest(interaction)} key={index}>{interaction[0].toUpperCase()}{interaction.substring(1)}</button>
+                            )}
                         </div>
                         <div style={{marginTop: '1rem'}}>{state?.locationData?.description || `You're getting your bearings...`}</div>
                     </div>
@@ -883,7 +1349,8 @@ function OverlayContent({state, dispatch, sendSocketData, logout}) {
     }
 
     function handleStructInteractionRequest(structToInteract, interaction) {
-        return sendSocketData({structToInteract: structToInteract, interaction: interaction}, 'interact_with_struct');
+        console.log(`Interacting with struct `, structToInteract);
+        // return sendSocketData({soulTarget: structToInteract.soulRef, interaction: interaction}, 'interact_with_struct');
     }
 
     useEffect(() => {
@@ -1147,19 +1614,20 @@ const CharacterCreationComponent = ({ dispatch, sendSocketData }) => {
     // Set up in an array for now, but once we have the value we can pass it directly when it's attached to player variables
     const fontOptions = ['Courier', 'Lucida Console', 'Monaco', 'Arial', 'Verdana', 'Tahoma', 'Trebuchet MS', 'Impact', 'Times New Roman', 'Didot', 'Georgia', 'Luminari']
 
-    const creationPages = [
-        (<div style={{width: '100%', flexDirection: 'column', alignItems: 'center'}}>
-            <div style={{width: '100%', marginBottom: '1rem', textAlign: 'center', justifyContent: 'center'}}>A voice in your head quietly prompts, "Don't worry. You do have a name. Let me help you remember."<br/>"What sort of adventurer are you?"</div>
-            <div style={{flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center'}}>
-                <button style={{margin: '0.5rem', width: '100px'}} onClick={() => setSelectedClass('rogue')}>Rogue</button>
-                <button style={{margin: '0.5rem', width: '100px'}} onClick={() => setSelectedClass('fighter')}>Fighter</button>
-                <button style={{margin: '0.5rem', width: '100px'}} onClick={() => setSelectedClass('sympath')}>Sympath</button>
-                <button style={{margin: '0.5rem', width: '100px'}} onClick={() => setSelectedClass('sorcerer')}>Sorcerer</button>
-            </div>
-            <button disabled={selectedClass === 'none'} onClick={() => wrappingUp > 0 ? setCreationPage(3) : setCreationPage(creationPage + 1)}>{selectedClass === 'none' ? `...` : `${classDescriptions[selectedClass]}`}</button>
-            
-        </div>),
+// removed initial 'class' page in favor of having class determined in-game; leaving it here for reference
+//     (<div style={{width: '100%', flexDirection: 'column', alignItems: 'center'}}>
+//     <div style={{width: '100%', marginBottom: '1rem', textAlign: 'center', justifyContent: 'center'}}>A voice in your head quietly prompts, "Don't worry. You do have a name. Let me help you remember."<br/>"What sort of adventurer are you?"</div>
+//     <div style={{flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center'}}>
+//         <button style={{margin: '0.5rem', width: '100px'}} onClick={() => setSelectedClass('rogue')}>Rogue</button>
+//         <button style={{margin: '0.5rem', width: '100px'}} onClick={() => setSelectedClass('fighter')}>Fighter</button>
+//         <button style={{margin: '0.5rem', width: '100px'}} onClick={() => setSelectedClass('sympath')}>Sympath</button>
+//         <button style={{margin: '0.5rem', width: '100px'}} onClick={() => setSelectedClass('sorcerer')}>Sorcerer</button>
+//     </div>
+//     <button disabled={selectedClass === 'none'} onClick={() => wrappingUp > 0 ? setCreationPage(3) : setCreationPage(creationPage + 1)}>{selectedClass === 'none' ? `...` : `${classDescriptions[selectedClass]}`}</button>
+    
+//      </div>),
 
+    const creationPages = [
         (<div style={{width: '100%', flexDirection: 'column', alignItems: 'center'}}>
             <div style={{width: '100%', marginBottom: '1rem', textAlign: 'center', justifyContent: 'center'}}>The voice in your head continues, "Focus on the feeling of your body, the flow of thoughts in your mind."<br/>"What do you sense about the state of your Self?"</div>
             <div>Unspent Points: {Object.keys(statSpread).map(statKey => statSpread[statKey]).reduce((total, next) => total - next, 82)}</div>
@@ -1204,9 +1672,9 @@ const CharacterCreationComponent = ({ dispatch, sendSocketData }) => {
             
 
             <div style={{flexDirection: 'column', flexWrap: 'wrap'}}>
-                <button style={{padding: '1rem', border: '1px solid gray', margin: '0.25rem'}} onClick={() => setCreationPage(2)}><VocalSpan voice={voice}>I am {playerName}.</VocalSpan></button>
-                <button style={{padding: '1rem', border: '1px solid gray', margin: '0.25rem'}} onClick={() => setCreationPage(0)}><VocalSpan voice={voice}>I am a {selectedClass.substring(0,1).toUpperCase()}{selectedClass.substring(1)}.</VocalSpan></button>
-                <button style={{padding: '1rem', border: '1px solid gray', margin: '0.25rem', display: 'flex', flexWrap: 'wrap'}} onClick={() => setCreationPage(1)}>{Object.keys(statSpread).map((stat, index) => (<div key={index} style={{margin: '0.5rem'}}>{stat.substring(0,3).toUpperCase()}: {statSpread[stat]}</div>))}</button>
+                <button style={{padding: '1rem', border: '1px solid gray', margin: '0.25rem'}} onClick={() => setCreationPage(1)}><VocalSpan voice={voice}>I am {playerName}.</VocalSpan></button>
+                {/* <button style={{padding: '1rem', border: '1px solid gray', margin: '0.25rem'}} onClick={() => setCreationPage(0)}><VocalSpan voice={voice}>I am a {selectedClass.substring(0,1).toUpperCase()}{selectedClass.substring(1)}.</VocalSpan></button> */}
+                <button style={{padding: '1rem', border: '1px solid gray', margin: '0.25rem', display: 'flex', flexWrap: 'wrap'}} onClick={() => setCreationPage(0)}>{Object.keys(statSpread).map((stat, index) => (<div key={index} style={{margin: '0.5rem'}}>{stat.substring(0,3).toUpperCase()}: {statSpread[stat]}</div>))}</button>
                 <div style={{width: '100%', flexDirection: 'row'}}>
                     
                 </div>
@@ -1217,7 +1685,7 @@ const CharacterCreationComponent = ({ dispatch, sendSocketData }) => {
             <input type='text' placeholder='(password)' value={password} onChange={e => setPassword(e.target.value)} />
             <input type='text' placeholder='(confirm password)' value={confirmedPassword} onChange={e => setConfirmedPassword(e.target.value)} />
             <button disabled={wrappingUp < 2} onClick={createCharacter}>{wrappingUp < 2 ? `(Chant your mnemonic.)` : `(Open your eyes.)`}</button>
-        </div>),        
+        </div>),
 
     ];
 

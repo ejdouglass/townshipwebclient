@@ -25,6 +25,7 @@ export const actions = {
     ENTER_WORLD_MAP: 'enter_world_map',
     LEAVE_WORLD_MAP: 'leave_world_map',
     LOAD_MANAGEMENT_DATA: 'load_management_data',
+    DISMISS_MANAGE_MODE: 'dismiss_manage_mode',
     BEGIN_BATTLE: 'begin_battle'
 
 };
@@ -153,13 +154,23 @@ export const Reducer = (state, action) => {
             // getting a {wealth: 0, weight: 0, townstats: {}} payload
 
             // oops. yeah, no, we can't just slap it in there wholesale, now we probably have a map here. one sec.
-            
+            let chillPlayer = {...state.player, playStack: {...state.player.playStack, mode: 'township_management'}};
             if (state.map == null) {
                 // HERE: pop that map into existence
                 const { mapObj } = action.payload;
+                let unredundantMapObj = {...mapObj};
+                delete unredundantMapObj.map;
+                let mgmtData = {...action.payload};
+                delete mgmtData.mapObj;
+                return {...state, player: {...chillPlayer}, mapData: unredundantMapObj, map: mapObj.map, mgmtData: {...action.payload}};
             }
             console.log(`Setting mgmtData: `, action.payload);
-            return {...state, mgmtData: {...action.payload}};
+            let mgmtData = {...action.payload};
+            if (mgmtData.mapObj != null) delete mgmtData.mapObj;
+            return {...state, player: {...chillPlayer}, mgmtData: {...mgmtData}};
+        }
+        case actions.DISMISS_MANAGE_MODE: {
+            return {...state, mgmtData: null};
         }
         case actions.BEGIN_BATTLE: {
             // not actually really battle-ready yet :P
@@ -201,7 +212,8 @@ const initialState = {
         nickname: ``,
         description: ``,
         history: [],
-        structs: {}
+        structs: {},
+        interactions: []
     },
     mgmtData: null, // client-specific mgmtData to trigger township management... haxxy for testing purposes :P
     alertString: undefined,
