@@ -14,14 +14,6 @@ export default function App() {
 
 /*
 
-The choose-your-own-adventure chatventure is still a rare and mythical beast. :P
-What we need to get done, as simply as possible:
-- can fight, gaining exp, loot, levels, etc. and effecting change (either by getting stuff for township/self, opening up new options, or changing worldMap area params)
-- can manage the township by allocating population, building structures, upgrading structures; setting privacy/visit rules
-- township ticks away, generating income, events, local worldMap changes
-- can do a few basic chatventures, such as patrolling, trading, exploring (DQT style upgrade ability chances for discovery), 
-
-
 
 
 QUICKSCRATCH
@@ -29,37 +21,6 @@ QUICKSCRATCH
   - when a chatventure gives you lemons... I mean, an encounter (type: battle), track what everyone got up to! for AI purposes as well as different resolution concepts
 -) vaguely ACNH approach of daily or per-time-frame chance of visitation, where 'guaranteed' special npc shows up under pity conditions
 -) party system implementation... sending immediate requests, possibly 'event' requests, and under what conditions to form a party
--) patrol joining implementation for multiplayer, keeping a mind open to other possibilities down the road, plus when all-for-one vs one-for-self (dependent vs independent play)
-  - this also sort of requires being able to visit other townships, so let's implement "following" and privacy later
-
--) reinstate skills, have learning abilities raise skills by some amount (such as Zephyr raising magicLore, windLore, restoreLore... or whatever we end up calling anything)
-  - the skill itself will have a record of how much 'value' is given per level, OR automatically scales based on tier, modded by any special values
-  - using a skill increases its exp AND gives you exp in proportion; no difference between USE and EXP anymore
-  - you spend accumulated EXP on unlocking new abilities, potentially powerleveling extant abilities, etc.
-  - 
-
--) NOTE: structRequesting will need to change to always check the 'visit' first, join in on that, and then push any specifically chosen EVENT sub-mode from there
-  - default is always visit for now
-  - this is in cases such as general store, where you have to be in the 'visit' of it before you can shop
-  - in cases such as exploring, a new chatventure is created, so you can 'skip' the visit, so to speak
-
--) LEVEL SCALING RECONSIDERATION: classLevel as "adventurer level," then match against levels of mobs? HRM... ok, yeah, I kinda like that :P
-  - requires some thought about scaling, as well as learning abilities from other classes, multi-classing, and/or class changing
-
-
-2) test playStack.doing OR mode for enabling combat concepts
-  - start it out with just YOU FIND MONSTER(S), but you scout them, so you can FIGHT, KITE, or FLEE
-  - for now FIGHT starts a battle, and FLEE just dismisses the possibility
-  - let's start with all patrols revealing a single DROOLING HUSK, which if fought just stands there naked and takes hits :P
-
-  - oh, before we wrap up, send to history ... BOB GOES ON PATROL, Y'ALL (and any other echo data we're interested in)
-
-
-
-  SCRATCH FOR CURRENT COMBAT IMPLEMENTATION ON SERVER
-  - fantastic! husk smacking itself is all operational. now we just have to call actOut again at the end of it all.
-  DONE! agent.currentAction is now the basis for transitioning between maneuvers.
-  next up: an actual live battle, win or lose
 
 
   REFACTOR ABILIITY DONK:
@@ -70,248 +31,25 @@ QUICKSCRATCH
     - I like the core concept, but maybe have higher guaranteed base damage, and have damage reduction be more % based to avoid a lot of 1 dmg early on?
     - or maybe it's fine, especially for now, ONWARD!
   
-  (O) So the big challenges now... define core and second-tier abilities for everyone to get them to level whatever
-    - have a 'targeting' system
-    - loot and level
-    - basic materials and item crafting/generation (can make fxns to generate possible stuff under given parameters)
-    - decide on core STARTER structs, as well as buildout options for a little bit of playtime
-      - core materials, straight level upgrade scheme with new description/nickname (later icon), costs in terms of weight, time, materials
-      - STOCKPILE whose job is just to be an inventory
-
-    
-
-
-    PLAN IT ALL OUT PRE-BUILD - REFACTORS & PREFACTORS
-    @combat
-    - spellcasting works a bit differently: vanilla casting of spells has a significant windup if that's the only action, buuuut
-      - various rituals, techniques, and actions can carry a spellCharge attribute, which defrays the cost of subsequent spell(s)
-    - some actions are flagged by default as, or can BECOME through previous actions, 'finishers,' which expend substantial EQL
-      - at minimum, all remaining EQL is spent
-      - can 'overspend' EQL
-      - forces stance reset (999/-999/whatever # we end up on)
-    - what happens upon INPUT? note that the WINDUP is 'part' of the technique, even if the windup is 0
-      - could we consider the move's COOLDOWN as part of the next move's WINDUP?
-    - ok! ... coming along. NOW! let's figure out expected 'income' of exp and loot from battle?
-
-
-    @leveling
-    - gain exp for using skills (just doing visit-style skill spamming shouldn't 'pay' very well :P), spending flux, completing chatventures, etc.
-    - Ingress 'main level' it a bit... add in requirements that can be checked; first 10 levels exp-only is fine
-    - exp is a spendable amount, but .history.expGained -should- record all expGain for players for leveling purposes
-    - AHA! ok, so STATS scale with currentClass(es), simply according to level and without caring about the 'class level' too much
-    - classes get a set number of abilities per, with predictable arcs to level them up
-      - classes gain exp by mastering their abilities
-      - higher class level unlocks bonus stat mods and possible purchasing of higher tier abilities
-      - 
-
-
-    @abilities
-    - learn by spending exp (and possibly other requirements... wallet, flux, items, what have you) to unlock
-    - jump to Building Classes - abilities in server.js to brainstorm
-    - after that, they gain exp by use (1 per use), and can be further trained at certain buildings/trainers
-    - level requirement scaling as well as skill level granted based on tier, but can have skills go up based on type, action, etc. (martial up, wind up, etc.)
-    - may refactor to universal use() and windup() fxns, which should be able to use the user + their skill obj + their actionQueue to figure everything out
-
-
-    @materials
-    .. refactor:
-    - metals, woods, fabrics, leathers, etc. are their own objects that can be filtered for 'tier,' which is the primary determinant of quality
-    - aside from tier, slightly different stats/mods/special effect potentials to help differentiate gear made from them for different purposes
-    @equipment
-    - simplify a bit, with discrete levels of scaling (S-D, 0.25 intervals starting at D-) for stats to contribute to ATK/MAG/DEF/RES
-    - each blueprint can have a material requirement for filtering purposes
-    - equipment tier/level? hm... but plz, @ kiss
-    - ok, so a basic number represents 'scaling', and equipment can have something like
-    scaling: {atk: {strength: 1}, mag: {willpower: 1}}, representing a 0.25 scaling for every 1 point (granularity!)
-      - so the 'build' of the item confers the first value, and the material represents additional modification potential
-      - we can let the client sort out the display of all this
-      - maybe the material TIER constitutes the 'basic' scaling of the core item, and material then holds potential for mods that can be applied
-      - so for example metals: {copper: {tier: 1, weaponProps: {mag: {willpower: 1}}, armorProps: {res: {intelligence: 1}}, props: {conductive: 3}}}
-        - weaponProps would be automatically added to any weapon made of this material, likewise for armorProps
-        - props (general properties) can EITHER be a list of general properties OR specific mods
-        - general properties would generally scale better
-      - weapons can also have atk: {scaling: {...}, mod: 1, impact: 1}, mag: {...likewise}
-        - atk mod baked in, impact for eql damage, scaling for stat determination, huzzah
-        - should ALL attacks disrupt EQL?... hm, nah, let's assume only if specified
-      - armors should probably have some resistance qualities? ... 
-
-
-
-
-    @township & structs
-    .. let's try:
-    - how BIG is a township to start with? 5x5? is that sufficient? sure, why not, itty bitty township at that level, upgrade with NEXUS (mebbe)
-    - universal 10m pulses (followed by saving), and all logic for events/actions/etc. is sorted at that point, resulting in 6 pulses/hour
-    - these pulses should have a shot at generating various kinds of events within the township, bringing it to life
-      - good, bad, and wacky... but let's keep it relatively simple for now
-    - player's LEVEL determines potential by default (how many buildings, upgrade possibilities, etc.) - WEIGHT limit
-    - struct upgrades can be dynamic eventually, but for now should be static, a linear series of upgrades
-    - most structs can (should?) have population of township assigned to them, and may have 'npc slots' for special functionality/boosts
-      - as upgrading occurs, there might be some 'maintenance' minimum to maintain to keep it from falling into disrepair (HP?)
-      - some internal logic for handling resource extraction, including access and population, and including any support structure bonuses
-    - might add struct HP value, representing overall state of repair or disrepair
-    - some structs can exist just to help build population
-    - possibly use placeStruct() global fxn to place structs! :P .... oooooooor Class Methods, woooooo!
-    - population requires food and water supply/income, at minimum... build a well, and/or allocate some hunters/gatherers/build some farms
-    - 
-      ..
-    @worldMap
-    .. gen, changes, interaction with township
-    - as the 'basis' for the operations of the township, it needs to be fairly well-defined
-    - it's also the basis for a lot of potential random occurrences, so
-    - note that worldMap for each township can and will change for various reasons, so will have its own pulses
-    - when you 'outgrow' an area, can become starbound to the next possibilities, and maybe land somewhere wacky like a desert (black iron!)
-    - let's think about initializing a worldMap...
-    
-    ideally, we'll have a drawable map array with coords, but that could lead to a LOT of different areas... which is... fiiiiine, actually?
-
-    each square on the map is an 'area' with its own native resources, Civ style but with a little more 'extra' going on
-    - structs within the township dictate the potential 'reach' of resource gathering and efficacy
-    - worldMap.map gives us a grid of areas, with stuff like rivers, lakes, etc. generated throughout with their own layering logic
-    - area biome spawn with a certain robustness from a 'core' (forest growth, hill 'growth,' etc.)
-    - each gridArea has its own internal spawn data, resource data
-    - each gA also has visitable sub-structs with contextual actions based on said sub-structs, can be 'chill'ed in, and you can move 'room to room'?
-      - sounds like a MUD with extra steps :P ... 
-
-
-    @npcs
-    .. doop de doo, they have levels too
-
-
-
-
-
-    breaks vs 'core' stats, which influence derived stats, but again require a calcStats in there somewhere
-      - which also requires some understanding of stats as listed being 'core'/innate
-      - and bonus stats become effectiveStats? hmmmm
-
-    also! consider the situation where a player leaves and the entity/others/effects attempt to hit them... never assume the target is in range or visible
-      - just a quick note to self to check for that... can have a separate "you there?" fxn that's called in combat checks
-    
-    QUERY: what mods, status effects, etc. do we want on release? ... probably almost none, realistically, for the tech demo concept
-    QUERY: what 'skills' do we want on release? ... what influence 'should' they have, and on what?
-
-
-6) combat resolution -- win (with some loot, as least wallet+) or flee (with any basic considerations there)
-7) give things some TEETH, add combat resolution scenario -- lose (likewise with basic considerations)
-
-o) SHOPPING!
-  - will probably require some thought into ware generation, ideally with a little bit of RNG, owner soul checking, and township/struct resources
-  - having an NPC 'take over' a struct or become otherwise 'attached' to it can be helpful, depending... but the mechanism for that isn't yet defined
-  - ultimately, any 'shopping' / trading mode will just require a stock of wares to be provided, either by a struct or generated with an npc/event
-
-o) TOWNSHIP LOGISTICS
-  - refactor worldMap to INCLUDE current township
-  - use worldMap data to determine resource availability
-  - multiplayer: go to a township, "some for me, some for you" if you go on gathering excursions... everybody wins! ... unless you're terrible :P
-
-
-O) skim quickscratch, add more interactions, building up to two big ones: patrol and trade
-O) we're "ready" when we have basic chatventures, basic leveling, basic township management (interaction, building, surveying), and the ability to chat and pop over with others
-
-REFACTOR:
-- chat IS a chatventure; no 'visit' for separate areas of the township
-- storybook chatventures are a separate entity, with battles and such, and can still have shopping/etc. overlays theoretically
-
-possibly have 'branching upgrades' at certain struct levels OR for each level, choosing which 'stat' or aspect to focus on
-
-RE-SETTLING: a chatventure of chatventures to scout a new world! 
-
-Balance 'flux costs' versus 'free costs'? Abandon flux entirely? I'unno. I like the idea of a 'hybrid' model of some sort.
 
 Hunting special mobs: job board
 
 
 GRITTY DITTY (kinda in order):
-[_] All icons... they gotta go! We're going FULL TEXT FOR NOW (pending some time to design graphical bits)
-[_] Reconfigure character creation to account for NO ICON (no face, get that step outta here)
-[_] Auto-recuperate upon returning from chatventure
-[_] Define starter abilities for all, and wildly simplify and DQ-ify the ablilities for classes
-[_] Rejigger stat scaling, atk/mag/def/spr, equipment level, etc.
-[_] Ensure combat EQL lock for 'finisher' moves and scenarios -- lock further inputs if actionIndex is -999, but not if -1 or null
-[_] Define the properties of all starting structs
-[_] Introduce basic worldbuilding - worldMap gen (oops all husks for now... oops all copper, etc.), make sure everything seems to work alright
-  - area types: forest, plains, hills, mountains, tundra, desert
-  - each can have subtypes... eventually :P
-  - subareas: river, lake
-[_] Ensure brandNewPlayer init is properly intact given all of the above
-[_] Do some battle testing vs. husks, including resolution and gaining exp, loot, etc.
-[_] Mob AI tweaking to 'choose' moves based on weighting, on-the-fly re-targeting
-[_] Moar mobs
-[_] Moar worldMap gen depth
-[_] Township income - township ticks (reminder: stockpile 'copper ore' before we get usable copper)
-[_] Finish up basic equipment blueprints (incl. cost)
-[_] Flesh out materials (a few tiers in for everything, specials)
-[_] Add some new structs to be able to build (laborCost, which is scaled down by population involved in building)
-[_] Enable chatventure @ patrol, explore, trade
-[_] Township settings @ privacy/visitability, consider adding nuance to following and followedBy as objects with 'status' (friend, etc.)
-  - alternatively, player.relationships can cover that one
 
 
 
-Fiddlesticks
-[_] create ability menu(s) - chill, battle, trade, ??? (or just a 'universal' menu that filters based on context?)
-[_] upon player creation, an echo throughout ZENITHICA, woo
-[_] Refactor/refine township.worldMap to INCLUDE ref to township, as well as other points of interest, so we can grab 'weather' or any other relevant data
-  - thinking about this for struct.visit() and other upcoming actions
-[_] Add 'location' to Chatventure() init, using the above as a more thorough template
-[_] Change up strut init() functions to include the creation of a belongsTo that points to the allSouls key where this thing lives/was created in
-[_] Change perimeter to townwall (we'll assume a starting basic wood structure)
-[_] Add towngate struct, call it south gate or main gate or whatever, have it nickname descriptively perhaps, and have THAT be the patrol origin
-[_] ability aoe => targetOptions, defaultTarget
-[_] Design struct interaction basics, including particularly "patrol" on perimeter, which starts a CHATVENTURE! our first!
-[_] Make chatventure 'playable' in terms of chatting, using abilities, battling, choosing options to make stuff happen (immediately or discretionar-ily)
-[_] Refine basic class data for at least level 1/initial level data with at least one usable active ability for each (or at least for one so we can test drive it)
-[_] Add class starter structs to blueprints
-[_] Add township.worldMap = {areas: {}, map: []} logic for areas in some basic but usable form
-[_] Add 'explore' options to perimeter to chatventure those worldMap areas in some way, exploring and uncovering more options for them
-[_] Add basic general store struct to township creation, including some basic wares
-[_] Add capacity to interact
-[_] NPC generation: ids, name (from a name generator!), core stats, 'party up' and 'duel' options possibly... or at least township 'contribution' and combatable mobs
-[_] Township sub-menu functionality: basic management - rename (req backend), privacy (same)
-[_] Township sub-menu functionality: basic struct interaction (visit, pulling up separate menu for each... maybe using playState.at or somesuch)
-  - based on main struct type? ... or conditional accessible bits based on typing built in?
-[_] Retrofit NAME boopable to conjure overlay sub-menus: inventory, equipment, stats, ???
-[_] Player sub-menu functionaltiy: list inventory
-[_] Player sub-menu functionality: view class(es), spend exp
-[_] Icon (face) boopables should conjure contextual further options (DM mode?, view player info, etc.)
-[_] NEXUS upgrade: based on player's Nexus, ability to search out new life and new civilizations and add them as followed, thus making them visitable
-  - req: implement some sort of 'privacy' gating
-[_] Upgrade face icon logistics (can use a Codepen to play with it?)
-[_] Upgrade ChatEvent to include timestamp behavior
-[_] Implmement basic Adventure Class data to allow for some abilities and stat differentiation
-[_] Joinable basic Chatventures! ... or some other mechanism for doing echo-able ChatEvent stuff
-[_] Include ACTION BAR (view/unview since it might get a bit bulky, or a mobile-friendly version somehow), set and usage potential
-[_] Create dead-simple Chatventure format ... Hanging Out!
-[_] Slightly more advanced Chatventure format ... FIGHT!
-[_] Add "unread messages" logic, as well as "oh snap EVENTS GOING ON HERE" icons/boxes/decorations
-  - TownshipPreview with all sorts of fancy derived stats
-[_] Define TOWNSHIP icon, make sure it's defined in township vars
-[_] locationData on server is a bit... RY. So DRY it into a function that returns the stuff we're interested in. 
-[_] Update header bar spacing/contents
-[_] Add some 'force-a-gamestate-save' mechanisms
-  - is there a way to add a 'oh shit we're crashing do something before going offline' hook to the server?
 
-
-
-HIGHER DEV
-[_] Add more nuance to materials rather than merely level, reconsider equipment design nuance
-[_] It'd be neat if, at later Nexus levels, you could VISIT and cast aoe buff/helper magic and have it 'hit' everyone in that township
+ASPIRE?
 [_] For socket shenanigans, some sort of socketRestore fxn on each socket action -- check thisPlayer, if borked, attempt to fix
   - should be pretty easy, do a quick two-step function; since the socket IS active, it should be receiving a jwt? we can test for that
-[_] Building icons (at least super basic ones where you can tell it's a building at a glance... can use type: 'img' for Icon if that's easier right now)
-[_] HUDBox for more visually descriptive states of characters, including face
-[_] Set up a viable actual-play township situation (growing, interaction, interest, some life)
 [_] Set up the Initial Chatventure (character creation -> play tutorial)
 [_] Chatventure setup -- types, conditions, relationship with origin (area it's in) - ref email Chatventure hangouts
 [_] Going on Chatventures -- solo (Chatventure Spawn - flux?), some basic adventures
 [_] Going on Chatventures -- with FRIENDS!
-[_] Figure out the basics of Classes, Starting Classes, how they're set up to easily calcStats(), easily level up, easily peruse for purchasing new abilites/etc.
-[_] Attach ICON and VOICE to all relevant Chat Events
 [_] More advanced chat scroll behavior (jumping to bottom upon request, not necessarily every single new message; jump-to-bottom button)
   - should probably also cap the length of the history array in one or more ways, as eventually that'll get a little overwhelming
-[_] Consider refactoring to canvas or image for Icon -- rendering a whole mess of divs for every single message might get a little much after awhile
-[_] Thinking of making "ICON" a general component and then adding "type" inside the object so we can render faces to armor to buildings. WOO
+][_] Thinking of making "ICON" a general component and then adding "type" inside the object so we can render faces to armor to buildings. WOO
   - can even make icon.type into 'image' or something and pull straight from an image file, if we'd like!
 [_] Conditions modifying Icon (poisoned, ded, dilapidated, Foolish, etc.)
 [_] Hm, for stuff like Township Ticks, can we 'outsource' it to clients to run everything? :P
@@ -338,7 +76,6 @@ BROKEN?
 [_] If I leave my computer off for awhile, come back, let the 'game' idle a bit, and then try to visit a township, KA-CRASH
   - it's due to thisPlayer.playStack.gps being undefined, so have a way to handle/fallback for that
   - this also seems to happen when I'm editing the server file and it re-saves/re-launches, something gets corrupted/detached/comes loose somewhere
-..
 
 
 
@@ -359,28 +96,7 @@ CONSIDERATIONS
 
 
 
-playStack shenanigans
-Therefore the playStack can become an object rather than an array, since it can only be so 'deep'
-playStack: {
-  gps: 'Zenithica',
-  doing: 'shopping',
-  at: 'shopID',
-  overlay: 'none'
-}
-- or -
-playStack: {
-  gps: 'Dekar',
-  doing: 'chatventure',
-  at: 'chatventureID',
-  overlay: 'inventory'
-}
-... it's probably important to have playStack reflected accurately on both sides to enforce proper clarity
-
-
-
-
-CHATVENTURE STRUCTURE
-
+CHATVENTURE STRUCTURE... redux?
 
 - given that, yes, everyone should have -A- chatventure; their own, or their leader's
   - so what about when party is suspended?... you stay in the socket channel but... hmmmm
@@ -461,19 +177,6 @@ neoPlayStack: {
   menu: null // often used with events, but not exclusively... menu is an object by default, so can have a 'type' we can match to
 }
 
-Aw, heck. Should we say EFF IT and make basic graphical world seeding? A little X by X grid we can stomp around?
-- sigh. that's what we're building toward, anyway, sooooooooooooo fine. not much more work than what we're already doing. maybe. KISS? KISS.
-- start simple with "OUR PLAYER" being just a little dot or whatever and the terrains being... stupidly little 5-minute tiles to start
-- ok, we have... grassland, forest, and nothing else
-- this allows us to 'spread' monster data, too, hm
-- interesting seed-gen possibilities open up
-- need a 'township icon' now too... and logic to 'overlay' it on the tile in question
-
-... nexus needs to know wps/gps to warp back to?
-BLOOPTY. Currently easier to refactor everything down here. :P
-MOVE WITH SPEED, SIR
-[_] Finish neoPlaystack logic, implement, test basics to make sure nothing has exploded violently
-[_] Seed building logic, with a 'starter area' setting that guarantees a reachable chunk of forest and grassland, and probably is absurdly small for a 'world'
 [_] Finish TileArea basic logic, harmonized with above
   [_] finish defining starter style moves (at least strike and shock) so we can throw 'em on the muglins (and our player)
   [_] class MuglinMob to populate with for testing
@@ -481,14 +184,9 @@ MOVE WITH SPEED, SIR
     x- eh, just slap basic-ass clubs on everybody for now
     o- nail down logistics for combat flow, pending CHATVENTURE STRUCTURE above
     o- think through tileArea logic for 'random encounters' and spawning muglin camps/gatherings (first area has one as a primary goal to get enough opalite to UP NEXUS and travel to new worlds)
-[_] Township management: brainstorm & design, then implement the civ component
-[_] Rethink and establish Chatventure structure
+[_] Rethink and establish Chatventure structure (notes above)
 [_] Struct new behaviors and brandNewPlayer init spawn of the 'basics'
-  [_] Town Gate - exit point for worldMap
-  [_] Tavern recruitment! (and maybe struct behaviors in general - refactor/reorder playStack concept for more sensible chatventure layout)
-  [_] General Store shopping! (and stock gen)
 [_] Amend class mod logic, apply it to new characters upon creation
-[_] Add more combat actions: GUARD (always deft 9999), stance logic
 [_] Add allMobs, allNPCs (maybe all under allMobs umbrella for ease)
 [_] Make combat possible for turn-based now that mobs can spawn battles for us
 [_] equipment maker fxn for a given level (and/or given resources)
@@ -547,99 +245,35 @@ x tighten up world gen a bit: mini-snakes, landmass distancing, lake logic, rive
 [_] We can play DQ
  o- make parties (npcs and/or players), go on chatventures, battle against mobs to win/lose, gain levels/trayzure
  x- 
-[_] We can pop over to friends' chatrooms and chat wildly
- o- 
- x- 
+[x] We can pop over to friends' chatrooms and chat wildly
 
-There's lot of extra growth that's possible beyond that, but hey, room to grow is fun!
-
-
-Ok, real quick... it's best if we rejigger it so we create a new character and figure out township - world relationship
-NEXUS can hold the worldID, as well as coords within the world
-... world will have the township info present on said tile, and INTERACT mode for that can involve ENTERing the township/chatroom
-... chatroom is saved for regular towns, too? maybe? NPC towns? hmmmmmmm. I dunno.
-... but their other functionality would be pretty similar, a collection of structs in an area that can be interacted with.
-... when do we 'clean up' a world and dismantle it?
-... ok, so allWorlds: id: mapData: [[]], worldData: id: ref, souls: soulRef, soulRef
-... okiedoke one sec working on brandNewPlayer a bit, rejiggeirng how townships are structured
 
 need a way to signal we're in the MODE of walkin' aboot
 - chatventure sync
 
 
 next up:
-1) generate a new 'tutorial' world while creating a new player, search for a savanna once the world is set up, establish the township ON that savanna
+X) generate a new 'tutorial' world while creating a new player, search for a savanna once the world is set up, establish the township ON that savanna
   x - ok, we now spawn our starter character's township on a savanna (probably), neat
   x - resize worlds so they're not intensely insanely massive files, DONE
+X) figure out and begin income process (and maybe some starter materials already on hand)
+X) display that to user when in township, which should already be running right away
+X) be able to assign two 'away team' gathering spots?
 
-
-2) figure out and begin income process (and maybe some starter materials already on hand)
-3) display that to user when in township, which should already be running right away
-4) be able to assign two 'away team' gathering spots?
 5) basic building/ugprade logic within township... and maybe for reachable tiles?
-6) be able to pop out of current township and stroll about via town gate
-7) use Nexus to search for other townships and go chat and stroll about THEIR wacky worlds
 
-
-to make:
-1) township icon for world map
+X) be able to pop out of current township and stroll about via town gate
+X) use Nexus to search for other townships and go chat and stroll about THEIR wacky worlds
 
 
 
-Ok, but for now, let's move on. We can change our saving concepts a lil' later!
-... now then, we can apply roads, rivers maybe, townships on the map FOR SURE. How do we want to save/display?
-... we can get especially cheeky with minimalism here and have things like "j" is jungle, and we can extend the string
-now then, we're using mostly lowercase, but 26 lower, 26 upper, and 10 numbers = 62 possible base tile types per character under the 'current model' thinking
-... and realistically, we could throw in symbols as well for another however many, so we're good there. so, given that...
+
 we can derive a system for 'easy tile lore'
 FIRST SPOT: the tile type, such as j = jungle
 SECOND SPOT: tile placement detail for later, such as lower left, middle, upper (from spritesheet, once implemented)
 THIRD SPOT: tile 'natural special'? coal-hill, etc. ... each tile should have at least 1, some can have more than that if I'm feeling inspired :P
   - 0 = normal tile
 FOURTH SPOT: tile built special... player-constructed, mob-constructed stuff; TOWNSHIP takes precedence, T! if township is there, we'll T it up
-
-so we can expect something like v00T for our starting township spot, let's make it happen, y'all
-
-
-ok, every tile by default gives 'universal materials,' but has a chance of procuring tile-specific special materials, higher chance at higher level worlds
-
-common universal components versus rare components
-- modified based on world level/position in world? 'distance from spawn' modifier using min distance fxn
-- so worldSpawn data would need to be saved... the 'center' of a new world, although we could also just use savannaTileGPS? wouldn't be 'centered' but that's fine
-- cool, ok, we'll redraw the concept based on tile data... let's list tiles and their incomes below, and maybe some natural specials for them
-- we'll ensure the township starts with a simple well so we have a 1 water income default
-
-jwt smb vpu nda clf ghr M
-NOTE: can implement 'natural tile specials' in a little bit; let's focus on core capacity first
-j (jungle): 2 wood, 1 game, 1 herb
-w (wood): 2 wood, 1 game
-t (taiga): 2 wood, 1 game
-  any forest: wildwood: +1 game, weirdwood (less wood, more rare wood, very unusual occurrence)
-
-s (swamp): 1 wood, 2 herb, 1 water
-m (marsh): 2 herb, 1 water
-b (bog): 2 herb, 1 water
-
-v (savanna): 1 wood, 1 game, 1 herb
-p (plain): 1 game, 1 herb
-u (tundra): 1 game
-
-n (dunescape): 1 ore
-d (desert): 1 ore, 1 stone
-a (arctic): 1 ore
-
-c (cruisewater): 2 water, 1 game
-l (lake): 2 water, 1 game
-f (frostwater): 1 water
-
-g (greenhill): 1 ore, 1 stone, 1 herb
-h (hill): 1 ore, 1 stone
-r (frostmound): 1 ore, 1 stone
-  - loded: +1 ore
-
-M (mountain): 2 ore, 2 stone
-
-... huh, does ocean even add anything? :P ... it might not, currently. whoopsiedoodle
 
 river adds +1 water universally, may add other mods specifically
   - river can meander through any forest, flatland, or bumpy zone; rivers can ORIGINATE from freshwater, wetland, or lakey mountain
@@ -667,17 +301,6 @@ now that we can add friends, which is great, we have "You don't KNOW ME" display
 
 
 FINISHING UP:
-- newest struct ideas built (decide on class, blueprint, hybrid), KISS but keep some interest (think of costs, upgrades, etc. a bit)
-  o- define a few buildable structs you can start building with (internal) and weight cost/logic -- NOTE: starting weight is 145, so base off that
-- township management: resource gathering and assignment... probably have it 'tick' when the owner takes a look, and have overflow handling
-  x- oh idea for that: map out a carefully measured array, each with a clickable div and img (or canvas if preferred), which can handle selecting/deselecting
-  x- easy 7x7 grid based on local map (from locationData... port that functionality in)
-  o- show income, slots used #, storage, and storage totals
-  o- show menu(s) for viewing, building, upgrading structs (probably a view subtab situation - Overview, Gathering, Building)
-  o- update menu to show inventory (update management info)
-    - gather slots x/y and build weight into their own sxns
-  o- start calculating township income, selling off 'extra'
-    - define WHEN we do this calculation, probably via fxn
 - struct building, struct upgrading, struct interfaces: basics and test drive
 - struct basics: initial tradepost offerings, plop down first class trainer (switch!), struct-spec menus, basic refining online
 - final equipment stuff: how it affects stats, maybe add cha
@@ -723,7 +346,6 @@ LOOSE IDEA
   - liking that more, level up a bit before we worry about classes, use items and gear and guile
 - ooh, we can change the encounter rate to have a 'floor' (so, NOT 1 step minimum :P), so at 1-threat-per-step, a peaceful world rolls between 20 and 100 instead?
 - COMBINE: gathering/building/(maybe refining?) all in one stat! MwaHA! choose your battles!
-x- rejigger: Crossroad (Nexus + Inn + Well), Tradehall (Tradesman + Builder + Storage + Tradepost), Tower (Pit below, Guard above?)
 - super expensive 'terraforming' concept?... slowly reshape the land, with limitations and lots of effort
   - mostly 'deconstructive'... slowly knock a mountain down into a hill down into a flatland
   - can later have options to forest up an area, etc., or change the tropicality
@@ -734,101 +356,27 @@ DOOPTY
 
 
 CURRENTLY:
-o- change gatherSlots and buildSlots (and refining) to actionSlots (BE, FE)
-  - actionSlots = gatheringCoords + refining + building (arrays all)
-  - state.mgmtData is the 'source of truth' and only changes from the BE
-  - mgmtObj is the current front-end 'hypothesis' of changes in management
-
-
-
-x- replace 'buildings' on top row of township with 'actions' (may have to rejigger township variables/locationData for this, which is fine)
-  x- createLocationData fxn FIRST, so we don't have to CTRL+F every time (just this one last time to slot this fxn in :P)
-x- shift management map to top; overlay immediately below, both absolute to create proper overlays
-o- ensure management map is displayed only in proper conditions (doesn't need to appear in Refine, for example)
-o- define and implement refine concept
-  x- define refine concept
-  x- integrate 'refineOptions' into township in same fxn that handles townstats
-  o- handle REFINING in a tab in the township management
 o- how build/upgrade?
   o- define build object... {gps: soulName OR worldID, coords: wps, <otherData>}
-x- change 'interactions' to be township-wide, so that township interactions are from an array'd menu and not struct-specific
 o- fix township management so you can't bonk over and manage friends' townships :P
 o- adjust township management to slip into 'overview' by default, even after you close and then open again
 
 o- ideally, fix 'SAVE MANAGEMENT SETTINGS' button to be more intuitive and actually compare to state.mgmtData to see if there are changes 
-  - may be trickier than at a glance, however
+  - actually, on-the-fly changes work for refining, no reason they wouldn't work for gathering, sooooo let's change it to be on-the-fly/consistent
 
-... what if we changed BOOP to 'target' a square, giving overview information, and then we could GATHER or BUILD <x> from a simple side-menu?
-  - NOPE! keep it distinct, BUT we can add a mgmtObj.arr extra from 'active' to 'gathering' and 'building' to highlight differently in OVERVIEW
-  - oooor... ok, hear me out. mgmtObj.activeTile for what we're currently looking at
-  - click to see overview on the side (that tile)
-    - save by index, so we know which index of the arr we're at, and we can MUCH more easily toggle GATHER and do some buildin'
-
-
-x- neo actions fixed
 o- let's focus on having first actions being SNAPPY & FAST... quick watchtower? done in minutes! first upgrades? five minutes!
   - so first playing isn't sloggy
   - and new world settlement isn't particularly sloggy either
   - modify construction time of out-of-township stuff by distance AND road connectivity
 
 
-  REFINEMENT, REFINED
-      {name: 'Basic Butchery', from: {game: 1, water: 1}, into: {meat: 1, bone: 1, leather: 1}, time: 5},
-      {name: 'Prepare Wood', from: {wood: 2}, into: {timber: 1}, time: 15}
-
-  So we have the name/recipe, the from obj with the costs, the into obj with the result, and the time in minutes to complete the task
-    - the client has access to the full refineOptions array, with each such object above
-    ... so when we BOOP a REFINE A THING BUTTON, it should do... wut?
-    ideally, it calculates how many of a thing we can make, and then we can slider choose how many we want to make and it'll start it up
-    ... I'm currently thinking... hm, SHOULD we use actionSlots on refining?
-    - I slightly dislike the idea of a relatively short 'refining' process taking up a whooooole actionSlot
-    - eh, it's fine, buuuut ...
-    yeah, it's awkward having to jump around across multiple tabs to manage a singular resource
-    ... so single page seems better (again). Overview takes a lot of info, though, so still deserves its own 'page.'
-    ... default to Overview or Manage? Hhhhhnm.
-    - and where does 'building' stuff go for INTERNAL structures?
-    
-    I actually think we could potentially fit it all in one place. Just scrolling around a bit. It'd be hard on mobile, but web? PLEEENTY of room.
-
-    COLUMN UP
-    TOP: TOWNSHIP NAME (and change)
-    LEFT COLUMN: Condensed Overview... inventory + income (thus we include the zeroes now within inventory), scrollable (collapsible subsxns?) if more available
-    MIDDLE: Za Warudo... Griddy, tap-to-target (view), worst case can make the container div scrollable to see what we need to see
-      - defaults to TOWNSHIP, with TOWNSHIP BUILDY MENU on the right!
-    RIGHT COLUMN: Inspection Column... whatever you're looking at, can get more info here
-
-    where does REFINE come in? HRM
-      ... probably on the left? add a REFINE boopy that opens up its own sub-menu?
-      ... we can add an 'auto-collect' default where, when done with building/refining, the free slot goes back to gathering
-      ... alternatively, we could implement some sort of 'build queue' which... eh at this stage seems like far too much, so yeah, just pop in and handle it ;P
-      ... we'll implement a very lazy 'auto-collect' at first (basically random) and later can pick "most materials gained" option from free tiles
-    
-      OK! REFACTOR-AGA
-
-      ... so, how to implement REFINE and BUILD/UPGRADE?
-      - REFINE OPTIONS:
-      a) do a modal that gives refine options, then go crazy-crazy
-      b) click a thing to refine FROM on the left, then little menu lives there
-        ... oh since refining is 'global' as well, we can have structs enhance refining SPEED and EFFICIENCY (more yield per raw material), maybe even CRIT (rare materials)
-      - theoretically can reduce costs, too, but that might be a bit much for now
-      ... this all speaks to a resource -> product refining concept, which I'm ok with overall
-        - NEW ADDITION TO REFINE OBJ: 
-        currently name, from, into, time; ADD 'resource' so 'ore' gives you the metal options, 'wood' the timber options, etc.
-      - BUILD IDEA:
-      modal again, click the thing on the right to see its details (so still need structs and upgrade data), bring up a menu to say HI HERE ARE THINGS YOU CAN DO HERE
-        - and description woo
-        OK so we have a SUPER MODAL that has TYPING (type is passed in upon opening modal)
-        - what else? let's spitball in the modal fxn
-
-
-
       HOW TO UPGRADE OR BUILD
       building: 
         - add a "+ Build New Structure" button to top
-        - where/what blueprints are available?
-        - eh, have it be fixed to township level & soul memories/data
-        - the capacity to add more buildings comes from UPGRADES
-        - wanna grow your town? each level requires a certain amount of building, upgrading, and/or food?
+        - blueprints for now are global; can add specially sourced builds/upgrades later
+        - weight capacity for the town comes from limited struct upgrades (initially Crossroad)... should add weight and weightLimit (latter to townstats?)
+        - each township level requires a certain amount of builds+upgrades, as well as food+water maintenance
+          - township 'consumes' food/water preferentially to operate; starvation levels of food/water don't 'de-level' but put the town in a productivity debuff hole
 
 
       upgrading:
@@ -838,15 +386,8 @@ o- let's focus on having first actions being SNAPPY & FAST... quick watchtower? 
         - now, how to CODE it?
         
 
-      special:
-        - right now, this is the 'shops'/wares sxn
-        - thinking adding 'stuff' to shops gains specific options? like adding lots of leather levels up leather gear?
-        - AND/OR specific upgrades expand inventory in specific ways
-        - hm, well, since shopping is township-wide, I suppose wares object can be, too; specific structs can contribute to what's going on
-        - BLACKSMITH: + metal weapons/armors, + metalAmp
-        - so, township.wares for shopping? makes sense, I suppose
-        - okidokie, let's go add WARES... done
-        - so! wares are pulled from individual structs, upgraded specially from specializations, woo boy
+      wares:
+        - wares are now 'township global,' and individual structs can get upgrades to sell better stuff
 
   
     ooh struct SPECIAL ACTIONS such as events... HOST BREW PARTY at the Crossroad for a beer/food (and actionSlot?) cost, gain special effects
@@ -854,7 +395,7 @@ o- let's focus on having first actions being SNAPPY & FAST... quick watchtower? 
     
     how to handle 'township level up' concept as well as population... or is level = population, Civ1 style?
       - population -> actionSlots conversion logic?
-      - 1 for 1, make it easy; township level = population = actionSlots (2 + level by default; we can have more with other modifiers from other structs, the way we have it townstatted)
+      - 1 for 1, make it easy; township level = population 'level' = actionSlots (2 + level by default; we can have more with other modifiers from other structs, the way we have it townstatted)
 
     I have re-decided that TURN-BASED COMBAT is the way to go, with some caveats to keep it crispy. Starkly limited 'wait times' is part of it. :P
 
@@ -864,10 +405,109 @@ o- let's focus on having first actions being SNAPPY & FAST... quick watchtower? 
     - gatherers are still limited to 1/tile, and we can think about how to expand on that later (to be fair, the game DOES offer 48 potential gathering squares :P)
 
 
-    HOW UPGRADE STRUCTS
-    - I suppose just an object containing the upgrade list/logic based on the struct.type
-    - obj or arr? ... probably arr, and filter?
 
-  !!! - beware! currently the 'township drawing' logic is just checking the 'building present' slot [3] for being NOT 0... both main ctx drawing sxns use this logic
+  ??? - should I have a + and - section for gathering, representing hourly gain/loss/change from gathering AND refining endeavors
+    - sync'd all recipes to be on a 60 minute, so we can easily show/calc +/- hourly like gathering does
+
+  !!! - beware! currently the 'township drawing' logic is just checking the 'building present' slot [3] for being NOT 0... both main ctx drawing sxns use this wildly simplified logic
+  !!! - oops. mountains can and will block our walking, sometimes disasterously... they should ideally find a way to ensure they're not blocking the ONLY walkable terrain
+
+
+
+  Anyhoo! Blitzing along:
+  x) rejigger gathering income logic on both ends to reference township's tile income data, which can then be expanded upon with STRUCT MASTERIES
+  x) list o' structs to build, alpha
+  x) list o' upgrades for base and buildables, up to a certain low-ish level (let's say based on township level)
+  x) convert struct creation logic in preparation for class Struct() universality for building and upgrading
+  -) define township levels/logic
+  -) add ability to view details @ structs, build structs, upgrade structs
+  -) update income/hour visibility for refine/gather for consistency
+  -) add overview for actionSlots used/available on base town mgmt screen
+  -) add structView page when booping structs (or + Build New Struct, when added) buttons in town mgmt
+  -) time checker/ticker for... hm, building, and maybe eventually crafting (a later concept for now)
+
+
+
+  TOWN MANAGEMENT & LEVELING
+  - Crossroad's level is now the 'township level' - buildSlots = 2 + crossroad level
+  - what if... upgradeCap was derived from the Crossroad's level, instead of specific other stuff?
+    - making the Crossroad the most 'unique' leveling struct in terms of costs and requirements would help that along
+  - township level can just be the Crossroad's level; the 'heart' of the township, just keep chunking that up
+  - can integrate 'reqs' like town wall at a certain level or something, or even soul.history requirements
+  - buildLimit is derived from level as well, though in a more procedural way; having +5 buildable structs at level 5 seems a lot :P
+    ... or IS it? as struct variance increases, I think it's fine to have a ton of struct points!
+    ... ok! actionSlots and buildCapacity = crossroad level
+    ... just gotta rejigger the structs to scale in a way that's consistent with this new 'lotsa structs' logic, including having higher-weight buildings
+
+  CHARACTER LEVELS! woo!
+  - gain mne, gain levels... at least for awhile (history.mneGained)
+
+  CLASS LEVELS! woo!
+  - for now, see Flux below; then come back and flesh it out
+  - should probably have a 'starting class' to test drive the concept
+  - skills from that starting class can be bought to help segue into the first tier classes in ZC
+
+  FLUX? woo!
+  - I like the idea, but what is it "for," and what does it get you?
+  - thinking class levels based on "insight" gained from flux usage
+  - should we have a 'starter class' before getting our 'four main' classes? Zenithica?
+  - for 'rare' or 'limited' actions... turning the Township into a mode of transport, for example
+  - sort of a 'time spent beyond the time the player is spending' concept, with a little time-warping shenanigans in there for good measure
+
+  ZENITHICA! woo!
+  - a place to buy/sell stuff as character
+  - a place to buy/sell township stuff as manager of same
+  - various starter classes
+  - special events/actions
+  - easy way to 'advertise' your self/township, chat with folks, etc.
+
+  
+  ... what's that lagtime after creating a character before I can do township management? ... is it the same lagtime as going out the gate?
+
+  
+  !!! time calculations seem to be off if I leave for a day and come back, which isn't right... 12+ hours of refining and only 2 iron / 1 copper? that's super wrong
+    - let's break it down... when lastTick is SET (and saved), and how we check and calculate it
+    - the logic seems sound so far; maxTimesToRun MAY be the culprit?
+
+  [x] the "upgrade to whatever level (level + 1)" often displays the wrong number in the client?
+  [x] change save mgmt settings to AUTO on stop harvest/harvest
+  [x] welp, the CROSSROAD renders fine, but booping anything else is an instant crash in the client
+  [x] gonna need UPGRADE data on structs, as well, in the MHRMANAGE managementData grab; just grab whatever we need for the next level-up, and check against crossroad level
+  [x] we should receive an UPDATE from the backend when we successfully start building
+  ... need to update view-building information so that UPGRADE! vanishes and gives us "we're upgrading now" instead, maybe with an ETA
+  ... now that all township management sockets shoot back the same data, we need to start DRYing it all out
+  ... huh, what's our client ref for tile incomes?? ... I don't think it has anything to do with what's on the BE, that's for sure, so we should fix that
+  ... oh, it would be neat if for our township we represent "SPACE" for a new building with an empty slot that pops up when we have unused buildCapacity, which would replace "build new thingy" partially
+  !!! TOWNSHIP SAILING AWAAAAY ... freshwater, shallow ocean, deep ocean, SKY!
+    - what precipitates a "driveable" township? <cue Epoch music for some reason>
+  ... when doing a mgmt check on a township, it makes sense to check on building projects firstly, then calculate up until each next completed project (if applicable for that timeframe)
+    - if a project gets completed, builder(s) can go back to gathering
+  ... wares is now becoming just an array for structs; FANCY ware tech can be in a wareMods obj later on
+  ... hm, should we flag specs as being unique or not?... 'Iron Weaponsmithing' in a smithy seems like a one-and-done, while other specs are specific to the struct and are ok to duplicate
+  ... I like the idea of 'branching specializations' whereby a struct specializes SO HARD they exclude other spec options (and maybe become a new struct altogether)
+  ... implementing 'township vibes' and edicts such as overclocking and easy breezy would be neat, modifying consumption rates, adding universal mods, etc.
+  ??? how do we determine the cost of buying stuff at the shop? hmmm
+  ... ideally, if management window is left open, we have some way to 'refresh' ticks if it's just sitting eternally
+  ... hm, "one NPC per new struct" is an interesting idea; upgrades can lead to more NPC's; NPC => actionSlots, or nah?
+  ... upon player creation, ZENITHICA echo? ... and while we're at it, adding more meaningful 'ambient messaging' in the Zen chat
+  ... there are currently ZERO chatventures, which we should probably remedy at some point :P
+  ?!? apparently the useEffect in MainView for focusing on chat entry is being called conditionally? sometimes, maybe? I'unno, man
+  ... it'd be best to offload world gen to the client or a worker-analogue; even the 'tutorial world'/starter world takes a few seconds to do, which would NOT scale well :P
+  !!! whoops: hitting "enter"/submitting more than once while creating a new character is a little... wonky, so we should 'lock' that button as we segue into a new world
+  ... should go ahead and add an 'alert' style component that comes up and is dismissable but lets us know something is going on
+    - could add alert, info, etc. as separate for slightly different behavior
+
+  ... HM. Should struct specs come at every 5 levels, where it becomes a wholly new struct?
+    - but I still like the idea of being able to 'level up' parts of the struct with materials/effort, in an exclusive fashion that's limited
+    - so, I still like specs, but probably need to change how I think about them a little
+  
+  FINAL COMBAT CONCEPT CONSIDERATION - keep the DQ scaling as-is, or change to a 'flatter' style where stats don't fly up every level?
+    - welp, why change it to flatter? what's appealing about that?
+    - thinking of MBB DQT: having a Kacrackle doing a pretty predictable spread of damage, changing it more to "do the right tactics" versus "have the right stats"
+    - it helps smooth the curve of trivializing "low level" encounters and making "high level" encounters utterly unwinnable off the bat
+    - in a multiplayer environment with no clear-cut 'endgame' like this, it would allow newer players to hop in and potentially contribute relatively quickly
+    - ok, those are all pretty compelling reasons :P
+    - so then the next question is how to implement it in a way that doesn't feel super clunky
+    - additionally, I like the idea of bringing structs in to boost stats, so building the township is building your 'self' (character/persona), choose wisely for the town and for the chara
 
 */

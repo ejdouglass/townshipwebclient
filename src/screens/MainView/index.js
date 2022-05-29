@@ -202,6 +202,7 @@ export default function MainView() {
     function viewMgmtTile(tileObj, index) {
         // we should probably set the information on the TILEVIEW here, eh?
         // mgmtObj.viewTile and mgmtObj.viewDetails
+        // NOTE: now that this is defined within-township on the backend, we could just go ahead and set the infoText according to the actual tile-based incomes we have
         if (tileObj.coord[0] === mgmtObj.viewTile[0] && tileObj.coord[1] === mgmtObj.viewTile[1]) return console.log(`Already viewing that tile!`);
         const newViewTile = [tileObj.coord[0], tileObj.coord[1]];
         let newViewDetails = {type: ``, name: ``, list: []};
@@ -289,13 +290,32 @@ export default function MainView() {
                     break;
                 }
                 default: {
-                    infoText = `Mystery Water: ???`;
+                    infoText = `Ocean: ???`;
                     break;
                 }
             }
             newViewDetails = {type: 'tile', name: `Land Tile`, info: infoText, list: [tileObj.gathering ? `Stop Gathering` : `Gather`, ...contextList], index: index};
         }
         setMgmtObj({...mgmtObj, viewTile: newViewTile, viewDetails: {...newViewDetails}});
+    }
+
+    function beginUpgrade(structObj) {
+        // return console.log(`Receiving upgrade structObj: `, structObj);
+        const targetLevel = structObj.level + 1;
+        const inventory = state.mgmtData.inventory;
+        // return console.log(`So far so good`)
+        let constructionCost = JSON.parse(JSON.stringify(state.mgmtData.structUpgradeData[structObj.id].construction));
+        
+        const { grease, wealth: wealthCost } = constructionCost;
+        delete constructionCost.grease;
+        delete constructionCost.wealth;
+        let buildable = true;
+        Object.keys(constructionCost).forEach(reqItemKey => {
+            if (inventory[reqItemKey] < constructionCost[reqItemKey]) buildable = false;
+        });
+        if (state.mgmtData.wealth < wealthCost) buildable = false;
+        if (buildable === false) return alert(`You can't even begin to build that with your current means. Gather moar goodies!`);
+        return sendSocketData({targetStruct: structObj}, 'begin_struct_upgrade');
     }
 
     function handleTileAction(listItem) {
@@ -323,7 +343,8 @@ export default function MainView() {
                         if (listItem === 'Stop Gathering') return 'Gather';
                     });
                     console.log(`GatherChange should be ${gatherChange}`);
-                    return setMgmtObj({...mgmtObj, arr: [...newMgmtArr], viewDetails: {...mgmtObj.viewDetails, list: [...newList]}, gatherNow: mgmtObj.gatherNow + gatherChange});
+                    return saveManagementSettings({...mgmtObj, arr: [...newMgmtArr], viewDetails: {...mgmtObj.viewDetails, list: [...newList]}, gatherNow: mgmtObj.gatherNow + gatherChange});
+                    // return setMgmtObj({...mgmtObj, arr: [...newMgmtArr], viewDetails: {...mgmtObj.viewDetails, list: [...newList]}, gatherNow: mgmtObj.gatherNow + gatherChange});
                 }
 
                 // HERE: building options, prob'ly
@@ -334,17 +355,21 @@ export default function MainView() {
     }
 
     function saveManagementSettings(optionalServerObj) {
+
         let newGatheringCoords = [];
+
+        if (optionalServerObj != null && optionalServerObj.type == null) {
+            // console.log(`BEHOLD our new REFINING: ${optionalServerObj.refining}`)
+            // console.log(`More broadly, our optional server obj: `, optionalServerObj)
+            optionalServerObj.arr.forEach(tileObject => {
+                if (tileObject.gathering) newGatheringCoords.push(tileObject.coord);
+            });
+            return sendSocketData({newGatheringCoords: newGatheringCoords, newRefining: [...optionalServerObj.refining], newBuilding: [...optionalServerObj.building]}, 'update_management_data');
+        }
+        
         mgmtObj.arr.forEach(tileObject => {
             if (tileObject.gathering) newGatheringCoords.push(tileObject.coord);
         });
-        
-
-        if (optionalServerObj != null && optionalServerObj.type == null) {
-            console.log(`BEHOLD our new REFINING: ${optionalServerObj.refining}`)
-            console.log(`More broadly, our optional server obj: `, optionalServerObj)
-            return sendSocketData({newGatheringCoords: newGatheringCoords, newRefining: [...optionalServerObj.refining], newBuilding: [...optionalServerObj.building]}, 'update_management_data');
-        }
 
         return sendSocketData({newGatheringCoords: newGatheringCoords, newRefining: [...mgmtObj.refining], newBuilding: [...mgmtObj.building]}, 'update_management_data');
     }
@@ -435,9 +460,9 @@ export default function MainView() {
         if (state?.player?.name != null && state?.player?.playStack.mode == null) chatRef.current.focus();
     }, [state?.player?.name]);
 
-    useEffect(() => {
-        if (state?.player?.chatventure == null && chatRef != null) chatRef.current.focus();
-    }, [state?.player?.chatventure])
+    // useEffect(() => {
+    //     if (state?.player?.chatventure == null && chatRef != null) chatRef.current.focus();
+    // }, [state?.player?.chatventure])
 
     useEffect(() => {
         let myWalkingGuy;
@@ -769,7 +794,7 @@ export default function MainView() {
             let buildingCheckerObj = {};
             if (state.mgmtData.gatheringCoords.length > 0) {
                 state.mgmtData.gatheringCoords.forEach(gathCoord => gatheringCheckerObj[`${gathCoord[0]},${gathCoord[1]}`] = true);
-                state.mgmtData.building.forEach(buildObj => buildingCheckerObj[`${buildObj.coords[0]},${buildObj.coords[1]}`] = true);
+                // state.mgmtData.building.forEach(buildObj => buildingCheckerObj[`${buildObj.coords[0]},${buildObj.coords[1]}`] = true);
             }
             
             let numActiveGathers = 0;
@@ -870,19 +895,26 @@ export default function MainView() {
 
             {/* THIS: Township Management Window */}
             <div style={{position: 'fixed', width: '100vw', top: '0', left: '0', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', zIndex: '8', backgroundColor: 'hsla(240,50%,10%,0.6)', display: (state?.mgmtData !== null) ? 'flex' : 'none'}}>
-                <div style={{width: '90vw', position: 'relative', height: '90vh', overflow: 'scroll', flexDirection: 'column', padding: '0.75rem', alignItems: 'center', backgroundColor: 'white'}}>
+                <div style={{width: '90vw', position: 'relative', height: '90vh', overflow: 'scroll', flexDirection: 'column', padding: '1.25rem', alignItems: 'center', backgroundColor: 'white'}}>
                     <button onClick={() => dispatch({type: actions.DISMISS_MANAGE_MODE})} style={{position: 'absolute', top: '0.25rem', left: '0.25rem'}}>X</button>
                     <div>Your township, sire or siress!</div>
 
-                    <button onClick={saveManagementSettings}>SAVE MANAGEMENT SETTINGS</button>
+                    <div style={{width: '80%', border: '1px solid hsl(240,80%,80%)', borderRadius: '0.5rem', padding: '1rem', flexWrap: 'wrap', justifyContent: 'space-around'}}>
+                        <div style={{height: '100%', marginRight: '1rem', backgroundColor: '#0AF', color: 'white', padding: '1rem' }}>Available Townfolk: {state?.mgmtData?.townstats?.actionSlots - state?.mgmtData?.gatheringCoords?.length - state?.mgmtData?.refining?.length - state?.mgmtData?.building?.length}</div>
+                        <div style={{height: '100%', marginRight: '1rem', backgroundColor: '#0AF', color: 'white', padding: '1rem' }}>Gathering: {state?.mgmtData?.gatheringCoords?.length}</div>
+                        <div style={{height: '100%', marginRight: '1rem', backgroundColor: '#0AF', color: 'white', padding: '1rem' }}>Refining: {state?.mgmtData?.refining?.length}</div>
+                        <div style={{height: '100%', marginRight: '1rem', backgroundColor: '#0AF', color: 'white', padding: '1rem' }}>Building: {state?.mgmtData?.building?.length}</div>
+                    </div>
+                    {/* <button onClick={saveManagementSettings}>SAVE MANAGEMENT SETTINGS</button> */}
 
+                    {/* The management modal lives here */}
                     {mgmtObj.modal != null &&
                     <div style={{position: 'fixed', top: '0', left: '0', width: '100vw', height: '100vh', backgroundColor: 'hsla(255,85%,15%,0.7)', zIndex: '15', justifyContent: 'center', alignItems: 'center'}}>
                         <div style={{position: 'absolute', width: '80%', height: '80%', backgroundColor: 'white', zIndex: '16'}}>
                             <button onClick={() => setMgmtObj({...mgmtObj, modal: null})} style={{position: 'absolute', top: '0.5rem', left: '0.5rem'}}>Back</button>
 
                             {mgmtObj.modal.type === 'refine' &&
-                                <div style={{width: '100%', flexDirection: 'column', alignItems: 'center', padding: '0.75rem', overflow: 'scroll'}}>
+                                <div style={{width: '100%', flexDirection: 'column', alignItems: 'center', padding: '1.25rem', overflow: 'scroll'}}>
                                     Let's be refined, shall we? Mmm yes, indubitably.
                                     {state.mgmtData.refineOptions.map((refineOpt, index) =>
                                         <div style={{width: '90%', position: 'relative', flexDirection: 'column', padding: '0.5rem', margin: '0.3rem', borderRadius: '0.25rem', border: '1px solid hsla(240,90%,10%,0.8)'}} key={index}>
@@ -894,6 +926,62 @@ export default function MainView() {
                                         </div>
                                         
                                     )}
+                                </div>
+                            }
+
+                            {mgmtObj.modal.type === 'build' &&
+                                <div style={{width: '100%', flexDirection: 'column', alignItems: 'center', padding: '1.25rem', overflow: 'scroll'}}>
+                                    <div>Things you can build:</div>
+                                    <div style={{flexDirection: 'column', alignItems: 'center'}}>
+                                        {state?.mgmtData?.buildableStructs?.map((structPreviewObject, index) => (
+                                            <button key={index} style={{width: '80%', border: '1px solid hsl(240,80%,10%)', marginBottom: '0.5rem'}}>
+                                                <div>{structPreviewObject.displayName}</div>
+                                                <div>{structPreviewObject.description}</div>
+                                                <div>{Object.keys(structPreviewObject.construction).map((buildCostItemKey, index) => {
+                                                    return (
+                                                        <div key={index} style={{padding: '0.5rem', margin: '0.5rem', border: '1px solid black', justifyContent: 'center', alignItems: 'center', textAlign: 'center'}}>{structPreviewObject.construction[buildCostItemKey]} {buildCostItemKey} </div>
+                                                    )
+                                                })}</div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            }
+
+                            {mgmtObj.modal.type === 'viewStruct' &&
+                                <div style={{width: '100%', flexDirection: 'column', alignItems: 'center', padding: '1.25rem', overflow: 'scroll'}}>
+                                    <div>{mgmtObj?.modal?.subject?.displayName}</div>
+                                    <div style={{margin: '1rem'}}>{mgmtObj.modal.subject.description}</div>
+                                    
+                                    {state?.mgmtData?.building?.find(buildObj => buildObj?.subject === mgmtObj?.modal?.subject?.id) !== undefined ? (
+                                        <div style={{width: '100%', flexDirection: 'column', alignItems: 'center', overflow: 'scroll'}}>
+                                            <div>You're currently upgrading this building to Level {mgmtObj?.modal?.subject?.level + 1}!</div>
+                                            <div>Should be done around... NEVAH! Mwahaha! I have no easy way to get the info I want right now. Whoops.</div>
+                                        </div>
+                                    ) : (
+                                        <div style={{width: '100%', flexDirection: 'column', alignItems: 'center', overflow: 'scroll'}}>
+                                            <div>Struct Specializations:</div>
+                                            <div style={{flexWrap: 'wrap', alignItems: 'center', flexDirection: 'column', width: '80%'}}>
+                                                {Object.keys(state?.mgmtData?.potentialStructSpecs[mgmtObj.modal.subject.id])?.map((specName, index) => (
+                                                    <div style={{width: '100%', padding: '1rem', border: '1px solid black', margin: '1rem 0'}} key={index}>{specName}</div>
+                                                ))}
+                                            </div>
+                                            <div>Costs to upgrade to {state.mgmtData.structUpgradeData[mgmtObj.modal.subject.id].displayName}, Level {state?.mgmtData?.structs[mgmtObj?.modal?.subject?.id].level + 1}:</div>
+                                            <div>{Object.keys(state?.mgmtData?.structUpgradeData[mgmtObj.modal.subject.id]?.construction).map((reqItem, index) => {
+                                                // eh just do a split return here if we got grease :P
+                                                if (reqItem === 'grease') return null;
+                                                let currentAmount = Math.floor(state?.mgmtData?.inventory[reqItem]) || 0;
+                                                if (reqItem === 'wealth') currentAmount = Math.floor(state?.mgmtData?.wealth) || 0;
+                                                return (
+                                                    <div style={{margin: '0.5rem', padding: '1rem', border: '1px solid black'}} key={index}>{currentAmount} / {state.mgmtData.structUpgradeData[mgmtObj.modal.subject.id].construction[reqItem]} {reqItem}</div>
+                                                )
+                                            })}</div>
+                                            <div>Upgrade Time: {state.mgmtData.structUpgradeData[mgmtObj.modal.subject.id].construction.grease / 10} hour(s)</div>
+                                            
+                                            <button style={{marginTop: '1rem'}} onClick={() => beginUpgrade(mgmtObj.modal.subject)}>Upgrade!</button>                                            
+                                        </div>
+                                    )}
+
                                 </div>
                             }
 
@@ -936,13 +1024,37 @@ export default function MainView() {
                             <div style={{flexDirection: 'column', width: '20%'}}>
                                 <div>[ {mgmtObj?.viewDetails?.name} ]</div>
                                 <div>{mgmtObj?.viewDetails?.info}</div>
+
                                 {mgmtObj?.viewDetails?.type === 'myTownship' &&
                                     <div style={{flexDirection: 'column', width: '100%'}}>
+                                        <div>{state?.mgmtData?.townstats?.buildCapacity - state?.mgmtData?.weight} builds left</div>
+                                        <button onClick={() => setMgmtObj({...mgmtObj, modal: {type: 'build'}})} style={{marginBottom: '0.5rem'}}>+ Build!</button>
+                                        {/* {Object.keys(state?.mgmtData?.structs).map((structKey, index) => 
+                                        {
+                                            const listItem = state.mgmtData.structs[structKey];
+                                            return (
+                                                <button onClick={() => setMgmtObj({...mgmtObj, modal: {type: 'viewStruct', subject: listItem}})} style={{marginBottom: '0.5rem'}} key={index}>
+                                                    {listItem?.displayName} (Lv.{listItem?.level})
+                                                    {state?.mgmtData?.building?.find(buildObj => buildObj.subject === listItem.id) !== undefined ? 'Upgrading!' : ''}
+                                                </button>
+                                            )
+                                        }
+                                        )} */}
                                         {mgmtObj?.viewDetails?.list?.map((listItem, index) => 
-                                            <button style={{marginBottom: '0.5rem'}} key={index}>{listItem?.displayName}</button>
+                                            {
+                                                const thisTrueStruct = state?.mgmtData?.structs[listItem.id];
+                                                return (
+                                                    <button onClick={() => setMgmtObj({...mgmtObj, modal: {type: 'viewStruct', subject: listItem}})} style={{marginBottom: '0.5rem'}} key={index}>
+                                                        {thisTrueStruct?.displayName} (Lv.{thisTrueStruct?.level})
+                                                        {state?.mgmtData?.building?.find(buildObj => buildObj.subject === thisTrueStruct.id) !== undefined ? 'Upgrading!' : ''}
+                                                    </button>
+                                                )
+                                            }
                                         )}
+                                        
                                     </div>
                                 }
+
                                 {mgmtObj?.viewDetails?.type === 'tile' &&
                                     <div style={{flexDirection: 'column', width: '100%'}}>
                                         {mgmtObj?.viewDetails?.list?.map((listItem, index) => 
