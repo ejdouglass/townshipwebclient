@@ -25,8 +25,9 @@ export const actions = {
     ENTER_WORLD_MAP: 'enter_world_map',
     LEAVE_WORLD_MAP: 'leave_world_map',
     LOAD_MANAGEMENT_DATA: 'load_management_data',
+    RECEIVE_MANAGEMENT_DATA: 'receive_management_data',
     DISMISS_MANAGE_MODE: 'dismiss_manage_mode',
-    BEGIN_BATTLE: 'begin_battle'
+    BEGIN_BATTLE: 'begin_battle',
 
 };
 
@@ -136,24 +137,6 @@ export const Reducer = (state, action) => {
             return {...state, player: {...state.player, playStack: {...state.player.playStack, mode: null}}}
         }
         case actions.LOAD_MANAGEMENT_DATA: {
-            /*
-            
-                We'll want to receive the map and management data?
-                ... the locationData could hold that, conceivably... pass it on down when we visit, ey?
-                ... if we pass down with locationData, info might be a bit stale, but that's a'ight
-                ... alternatively, we grab a new locationData set when we boop management... which is probably best
-                ... ok, booping management will attempt to grab a new locationData
-
-                NOTE: this is through playStack.overlay option, rather than mode, so we can hinge the map loading on that
-
-                NOTE REDUX: ... all of the above is an older comment, we're blazing ahead with HAXXY TESTING MODE, enjoy!
-
-            */
-
-            // oh, we can do this now
-            // getting a {wealth: 0, weight: 0, townstats: {}} payload
-
-            // oops. yeah, no, we can't just slap it in there wholesale, now we probably have a map here. one sec.
             let chillPlayer = {...state.player, playStack: {...state.player.playStack, mode: 'township_management'}};
             if (state.map == null) {
                 // HERE: pop that map into existence
@@ -162,15 +145,19 @@ export const Reducer = (state, action) => {
                 delete unredundantMapObj.map;
                 let mgmtData = {...action.payload};
                 delete mgmtData.mapObj;
-                return {...state, player: {...chillPlayer}, mapData: unredundantMapObj, map: mapObj.map, mgmtData: {...action.payload}};
+                return {...state, player: {...chillPlayer}, mapData: unredundantMapObj, map: mapObj.map, mgmtData: {...action.payload, active: true}};
             }
             console.log(`Setting mgmtData: `, action.payload);
             let mgmtData = {...action.payload};
             if (mgmtData.mapObj != null) delete mgmtData.mapObj;
-            return {...state, player: {...chillPlayer}, mgmtData: {...mgmtData}};
+            return {...state, player: {...chillPlayer}, mgmtData: {...mgmtData, active: true}};
+        }
+        case actions.RECEIVE_MANAGEMENT_DATA: {
+            // THIS: quietly receive and update management data
+            return state;
         }
         case actions.DISMISS_MANAGE_MODE: {
-            return {...state, mgmtData: null};
+            return {...state, mgmtData: {...state.mgmtData, active: false}};
         }
         case actions.BEGIN_BATTLE: {
             // not actually really battle-ready yet :P
@@ -215,7 +202,7 @@ const initialState = {
         structs: {},
         interactions: []
     },
-    mgmtData: null, // client-specific mgmtData to trigger township management... haxxy for testing purposes :P
+    mgmtData: null,
     alertString: undefined,
     currentTownship: undefined,
     serverResponse: {},

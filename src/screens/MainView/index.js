@@ -153,7 +153,7 @@ export default function MainView() {
         return setMgmtObj({...mgmtObj, modal: {type: type}});
     }
 
-    function toggleRefining(refineOptObj) {
+    function adjustRefining(refineOptObj, amt) {
         /*
         
             OK! REFINING!
@@ -173,28 +173,57 @@ export default function MainView() {
             right now, it ONLY applies to gatheringCoords. we want the whoooole mgmtObj... well, the current passed stuff plus refining and building
 
             OK! management saving is improved, I believe, so we just need to update mgmtObj.refining
+
+
+            NEO REFINING - you move like they do
+            ... but with the goal of being able to +/- within availability to ramp up/ramp down refining
+
+            currently refining is an array of strings... proooobably going to have to change it into an array of objects to make this work as easily as possible
+
+            NEO REFINING OBJ
+            {name, workers, }...
+            akshully, here's a refining recipe: {name: 'Brew Beer', resource: 'water', from: {veg: 2, water: 2}, into: {beer: 2}, time: 60}
+            ... so, uh, that, but with workers?
+
+            ok, now we're just receiving a -1 or +1 and the obj, so we can find the recipe in state.mgmtData.refining, add it if it isn't there, subtract it if we went to 0, and add otherwise
+
+
         
         */
 
-
-            // ah, HERE'S the problem! I check if we're at max and then just don't do any sort of TOGGLE LOGIC. it's one-way, adding only. whoops.
-        let currentlyRefiningThis = false;
-        let newMgmtObj = {};
-        if (state.mgmtData.refining.indexOf(refineOptObj.name) > -1) currentlyRefiningThis = true;
-        if (currentlyRefiningThis === false) {
-            const currentSlotsUsed = mgmtObj.gatherNow + mgmtObj.building.length + mgmtObj.refining.length;
+        if (amt > 0) {
+            const currentSlotsUsed = mgmtObj.gatherNow + mgmtObj.building.length + mgmtObj.refining.length + amt;
             const maxSlots = state.mgmtData.townstats.actionSlots;
-            if (currentSlotsUsed >= maxSlots) return alert(`Clear up some PERSONNEL!`);
-            newMgmtObj = {...mgmtObj, refining: [...mgmtObj.refining, refineOptObj.name]};
-        } else {
-            newMgmtObj = {...mgmtObj, refining: mgmtObj.refining.filter(refineString => refineString !== refineOptObj.name)};
+            if (currentSlotsUsed > maxSlots) return alert(`The township is already fully assigned; clear up some workers first.`);
         }
 
-        // The backend will be sending us new mgmtData shortly... hm, so dunno if we should set it now here, as well
+            
+        let currentlyRefiningThis = false;
+        let newMgmtObj = {};
+        if (state.mgmtData.refining.filter(refineObj => refineObj.name === refineOptObj.name).length > 0) currentlyRefiningThis = true;
+        // if (state.mgmtData.refining.indexOf(refineOptObj.name) > -1) currentlyRefiningThis = true;
+        if (currentlyRefiningThis === false) {
+            if (amt < 0) return alert(`You can't decrease workers below zero. :P`);
+            newMgmtObj = {...mgmtObj, refining: [...mgmtObj.refining, {...refineOptObj, workers: 1}]};
+        } else {
+            // already refining this! have to adjust for +/- cases here
+            const targetIndex = mgmtObj.refining.findIndex(refObj => refObj.name === refineOptObj.name);
+            // console.log(`Looks like we're goofing around with index ${targetIndex} for adjusting refining`);
+            let refiningCopy = JSON.parse(JSON.stringify(mgmtObj.refining));
+            if (amt < 0) {
+                // subtracting a worker... it looks weird to ADD amt, but amt is -1, sooo
+                refiningCopy[targetIndex].workers = refiningCopy[targetIndex].workers + amt;
+                if (refiningCopy[targetIndex].workers <= 0) refiningCopy.splice(targetIndex, 1);
+            } else {
+                // adding a worker
+                refiningCopy[targetIndex].workers = refiningCopy[targetIndex].workers + amt;
+            }
+
+
+            newMgmtObj = {...mgmtObj, refining: refiningCopy};
+        }
+
         setMgmtObj(newMgmtObj);
-
-
-        // console.log(`Oh good you want to start crafting via the recipe of ${refineOptObj.name}`);
 
         return saveManagementSettings(newMgmtObj);
     }
@@ -314,15 +343,33 @@ export default function MainView() {
             if (inventory[reqItemKey] < constructionCost[reqItemKey]) buildable = false;
         });
         if (state.mgmtData.wealth < wealthCost) buildable = false;
-        if (buildable === false) return alert(`You can't even begin to build that with your current means. Gather moar goodies!`);
+        if (buildable === false) return alert(`You can't even begin to upgrade that with your current means. Gather moar goodies!`);
         return sendSocketData({targetStruct: structObj}, 'begin_struct_upgrade');
+    }
+
+    function beginBuild(structPreviewObj) {
+        // where in mgmtData do we have buildables hidin'?
+        // mgmtData.buildableStructs = {type, displayName, description, construction}
+        let constructionCost = {...structPreviewObj.construction};
+        const { grease, wealth: wealthCost } = constructionCost;
+        delete constructionCost.grease;
+        delete constructionCost.wealth;
+        let buildable = true;
+        const inventory = state.mgmtData.inventory;
+        Object.keys(constructionCost).forEach(reqItemKey => {
+            if (inventory[reqItemKey] < constructionCost[reqItemKey]) buildable = false;
+        });
+        if (state.mgmtData.wealth < wealthCost) buildable = false;
+        if (buildable === false) return alert(`You can't even begin to build that with your current means. Gather moar goodies!`);
+        return sendSocketData({targetStruct: structPreviewObj}, 'begin_struct_build');
+
     }
 
     function handleTileAction(listItem) {
         // plenty of DERIVING POWER from mgmtObj.viewTile, mgmtObj.viewDetails, plus the passed listItem itself
         // mostly want to be able to boop and unboop gatherings right now
 
-        // ADD: not letting us add infinite gatherers :P
+        // we've lost the ability to 'toggle' gathering on and off 'live,' though it DOES work properly beyond the visual cue
         switch (mgmtObj.viewDetails.type) {
             case 'myTownship': return;
             case 'tile': {
@@ -894,7 +941,7 @@ export default function MainView() {
             </div>
 
             {/* THIS: Township Management Window */}
-            <div style={{position: 'fixed', width: '100vw', top: '0', left: '0', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', zIndex: '8', backgroundColor: 'hsla(240,50%,10%,0.6)', display: (state?.mgmtData !== null) ? 'flex' : 'none'}}>
+            <div style={{position: 'fixed', width: '100vw', top: '0', left: '0', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', zIndex: '8', backgroundColor: 'hsla(240,50%,10%,0.6)', display: (state?.mgmtData?.active) ? 'flex' : 'none'}}>
                 <div style={{width: '90vw', position: 'relative', height: '90vh', overflow: 'scroll', flexDirection: 'column', padding: '1.25rem', alignItems: 'center', backgroundColor: 'white'}}>
                     <button onClick={() => dispatch({type: actions.DISMISS_MANAGE_MODE})} style={{position: 'absolute', top: '0.25rem', left: '0.25rem'}}>X</button>
                     <div>Your township, sire or siress!</div>
@@ -918,11 +965,16 @@ export default function MainView() {
                                     Let's be refined, shall we? Mmm yes, indubitably.
                                     {state.mgmtData.refineOptions.map((refineOpt, index) =>
                                         <div style={{width: '90%', position: 'relative', flexDirection: 'column', padding: '0.5rem', margin: '0.3rem', borderRadius: '0.25rem', border: '1px solid hsla(240,90%,10%,0.8)'}} key={index}>
-                                            <div>{refineOpt.name}</div>
+                                            <div>{refineOpt.name} {mgmtObj.refining.findIndex(refineObj => refineObj.name === refineOpt.name) > -1 ? ` - Crafting` : ``}</div>
                                             <div style={{margin: '0.25rem'}}>From: [{Object.keys(refineOpt.from).map((sourceMat, index) => <div style={{margin: '0 0.25rem'}} key={index}>{sourceMat} x {refineOpt.from[sourceMat]}</div>)}] </div>
                                             <div style={{margin: '0.25rem'}}>Into: [{Object.keys(refineOpt.into).map((finalMat, index) => <div style={{margin: '0 0.25rem'}} key={index}>{finalMat} x {refineOpt.into[finalMat]}</div>)}]</div>
                                             <div style={{margin: '0.25rem'}}>Time Per: {refineOpt.time} min.</div>
-                                            <button onClick={() => toggleRefining(refineOpt)} style={{position: 'absolute', bottom: '0.25rem', right: '0.25rem', padding: '0.5rem', borderRadius: '0.25rem'}}>{mgmtObj.refining.indexOf(refineOpt.name) > -1 ? `Stop Craft` : `Craft!`}</button>
+                                            <div style={{position: 'absolute', bottom: '0.25rem', right: '0.25rem'}}>
+                                                <button onClick={() => adjustRefining(refineOpt, -1)} style={{width: '40px', height: '40px', padding: '0.5rem', borderRadius: '0.25rem'}}> - </button>
+                                                <div style={{width: '40px', height: '40px', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '0.5rem', borderRadius: '0.25rem', margin: '0 0.25rem'}}>{mgmtObj.refining[mgmtObj.refining.findIndex(refineObj => refineObj.name === refineOpt.name)]?.workers || 0}</div>
+                                                <button onClick={() => adjustRefining(refineOpt, 1)} style={{width: '40px', height: '40px', padding: '0.5rem', borderRadius: '0.25rem'}}> + </button>
+                                            </div>
+                                            
                                         </div>
                                         
                                     )}
@@ -934,7 +986,7 @@ export default function MainView() {
                                     <div>Things you can build:</div>
                                     <div style={{flexDirection: 'column', alignItems: 'center'}}>
                                         {state?.mgmtData?.buildableStructs?.map((structPreviewObject, index) => (
-                                            <button key={index} style={{width: '80%', border: '1px solid hsl(240,80%,10%)', marginBottom: '0.5rem'}}>
+                                            <button onClick={() => beginBuild(structPreviewObject)} key={index} style={{width: '80%', border: '1px solid hsl(240,80%,10%)', marginBottom: '0.5rem'}}>
                                                 <div>{structPreviewObject.displayName}</div>
                                                 <div>{structPreviewObject.description}</div>
                                                 <div>{Object.keys(structPreviewObject.construction).map((buildCostItemKey, index) => {
@@ -1025,31 +1077,29 @@ export default function MainView() {
                                 <div>[ {mgmtObj?.viewDetails?.name} ]</div>
                                 <div>{mgmtObj?.viewDetails?.info}</div>
 
-                                {mgmtObj?.viewDetails?.type === 'myTownship' &&
+                                {(mgmtObj?.viewDetails?.type === 'myTownship' && state?.mgmtData != null) &&
                                     <div style={{flexDirection: 'column', width: '100%'}}>
-                                        <div>{state?.mgmtData?.townstats?.buildCapacity - state?.mgmtData?.weight} builds left</div>
+                                        <div>{state?.mgmtData?.townstats?.buildCapacity - state?.mgmtData?.weight - state?.mgmtData?.building?.filter(buildObj => buildObj.type === 'build')?.length} builds left</div>
                                         <button onClick={() => setMgmtObj({...mgmtObj, modal: {type: 'build'}})} style={{marginBottom: '0.5rem'}}>+ Build!</button>
-                                        {/* {Object.keys(state?.mgmtData?.structs).map((structKey, index) => 
-                                        {
-                                            const listItem = state.mgmtData.structs[structKey];
-                                            return (
-                                                <button onClick={() => setMgmtObj({...mgmtObj, modal: {type: 'viewStruct', subject: listItem}})} style={{marginBottom: '0.5rem'}} key={index}>
-                                                    {listItem?.displayName} (Lv.{listItem?.level})
-                                                    {state?.mgmtData?.building?.find(buildObj => buildObj.subject === listItem.id) !== undefined ? 'Upgrading!' : ''}
-                                                </button>
-                                            )
-                                        }
-                                        )} */}
-                                        {mgmtObj?.viewDetails?.list?.map((listItem, index) => 
+                                        {Object.keys(state?.mgmtData?.structs).map((structKey, index) => 
                                             {
-                                                const thisTrueStruct = state?.mgmtData?.structs[listItem.id];
+                                                const listItem = state?.mgmtData?.structs[structKey];
+                                                const upgradeObj = state?.mgmtData?.building?.filter(buildObj => buildObj?.subject === listItem.id)[0];
+                                                const upgrading = upgradeObj != null ? true : false;
                                                 return (
-                                                    <button onClick={() => setMgmtObj({...mgmtObj, modal: {type: 'viewStruct', subject: listItem}})} style={{marginBottom: '0.5rem'}} key={index}>
-                                                        {thisTrueStruct?.displayName} (Lv.{thisTrueStruct?.level})
-                                                        {state?.mgmtData?.building?.find(buildObj => buildObj.subject === thisTrueStruct.id) !== undefined ? 'Upgrading!' : ''}
+                                                    <button key={index} onClick={() => setMgmtObj({...mgmtObj, modal: {type: 'viewStruct', subject: listItem}})} style={{marginBottom: '0.5rem'}}>
+                                                        {listItem?.displayName} (Lv.{listItem?.level})
+                                                        {upgrading ? `UPGRADING (${Math.floor(upgradeObj.progress / upgradeObj.goal * 100)}%)` : ''}
                                                     </button>
                                                 )
                                             }
+                                        )}
+                                        
+                                        {state?.mgmtData?.building?.filter(projObj => projObj.type === 'build')?.map((buildProj, index) =>
+                                            <button style={{marginBottom: '0.5rem', flexDirection: 'column'}} key={index}>
+                                                <div>(BUILDING: {buildProj.subject[0].toUpperCase()}{buildProj.subject.substring(1)})</div>
+                                                <div>Progress: {Math.floor(buildProj.progress / buildProj.goal * 100)}%</div>
+                                            </button>
                                         )}
                                         
                                     </div>

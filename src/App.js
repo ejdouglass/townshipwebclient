@@ -469,13 +469,8 @@ o- let's focus on having first actions being SNAPPY & FAST... quick watchtower? 
     - let's break it down... when lastTick is SET (and saved), and how we check and calculate it
     - the logic seems sound so far; maxTimesToRun MAY be the culprit?
 
-  [x] the "upgrade to whatever level (level + 1)" often displays the wrong number in the client?
-  [x] change save mgmt settings to AUTO on stop harvest/harvest
-  [x] welp, the CROSSROAD renders fine, but booping anything else is an instant crash in the client
-  [x] gonna need UPGRADE data on structs, as well, in the MHRMANAGE managementData grab; just grab whatever we need for the next level-up, and check against crossroad level
-  [x] we should receive an UPDATE from the backend when we successfully start building
-  ... need to update view-building information so that UPGRADE! vanishes and gives us "we're upgrading now" instead, maybe with an ETA
-  ... now that all township management sockets shoot back the same data, we need to start DRYing it all out
+  [x] need to update view-building information so that UPGRADE! vanishes and gives us "we're upgrading now" instead, maybe with an ETA
+  [x] now that all township management sockets shoot back the same data, we need to start DRYing it all out
   ... huh, what's our client ref for tile incomes?? ... I don't think it has anything to do with what's on the BE, that's for sure, so we should fix that
   ... oh, it would be neat if for our township we represent "SPACE" for a new building with an empty slot that pops up when we have unused buildCapacity, which would replace "build new thingy" partially
   !!! TOWNSHIP SAILING AWAAAAY ... freshwater, shallow ocean, deep ocean, SKY!
@@ -494,20 +489,117 @@ o- let's focus on having first actions being SNAPPY & FAST... quick watchtower? 
   ?!? apparently the useEffect in MainView for focusing on chat entry is being called conditionally? sometimes, maybe? I'unno, man
   ... it'd be best to offload world gen to the client or a worker-analogue; even the 'tutorial world'/starter world takes a few seconds to do, which would NOT scale well :P
   !!! whoops: hitting "enter"/submitting more than once while creating a new character is a little... wonky, so we should 'lock' that button as we segue into a new world
-  ... should go ahead and add an 'alert' style component that comes up and is dismissable but lets us know something is going on
-    - could add alert, info, etc. as separate for slightly different behavior
-
-  ... HM. Should struct specs come at every 5 levels, where it becomes a wholly new struct?
-    - but I still like the idea of being able to 'level up' parts of the struct with materials/effort, in an exclusive fashion that's limited
-    - so, I still like specs, but probably need to change how I think about them a little
+  !!! possible issue: turning the computer on after a lengthy away period and booping mgmt will apparently give suuuuuper stale data? sometimes? always? uncertain
+  ... rejigger refining and building to allow multi-assignment
+  ... consider: multiple copies of the same 'refining' struct or recipe amplifying the speed it can be done? or the efficiency? hmmm
+  ... need a 'wealth sink' because I'm seeing that after a couple days it's easy to have a lot of that and not a lot of other stuff
+    - town perks, specs expensive, hasting projects, buying raw supplies in ZC or elsewhere, etc.
+  ... spend some time pondering out the tiers of mats for upgrading/refining/etc., which will help redefine building/upgrading costs
+    - standardize costs, then vary depending on struct
+  ... it'd be nice to see amps in township management somewhere (maybe just in the incomes/outflow/inventory sxn?)
+  ??? the loading when restarting server seems quite slow; are we being throttled, or is it the code?
+  ... hm, maybe when we're in management mode, we have an every-X-minutes timer that is scrapped when we leave but that pulses checks for us?
+    - oooor we could infer completion times and have an every-second timer that's FE-only and ticks away as we go
+    - or both :P
+  !!! still not getting the proper income after returning to computer, hm... no chance of sending stale data messing it up, is there?
+  ... hm, having 'idle' workers just 'work' the township tile is a fine idea
+    - though, because it's "free" and we already have the idea that a tile is 'fully gathered from' with just 1 'worker,' maybe impose a penalty, 0.5?
+  ... also starting to like the idea of 'specializations' JUST being the level 5/10/15/etc. choices where we get a new struct (current concept), clears up a lot of little concerns
+  !!! whoops, the "Gather/Stop Gathering" toggle works, but the display doesn't adjust on the fly anymore
+  !!! another whoops!... now that we're gearing up for WORKERS, the array length for building and refining isn't equal to actionSlots taken anymore
+    - so, need to fix that in calcTownship (doing that currently), as well as in 'available slots' checks for building/refining in client & related sockets
+  ... make sure all the upgrade-y structs do something of use :P ... right now, the tradehall does butt all and isn't worth upgrading in the least
+  ... related, but we need to make sure that we list out what we get by upgrading! ... might even want to add an 'upgradeDescription' for JUST describing the upgrade
+    - also related to related, we need to see what each struct actually functionally DOES for our township on detailed view :P
+  ... gameplay is getting fun (for me), from a mgmt standpoint, but it's LOTS of waiting right now... so, gotta give ACTIVE stuff for us to do (together!)
+  ... hm, loading is SUPER fast when there isn't any data... so what part of loading is taking aaaages after a few players/dates are there?
+  !!! 'X builds left' does NOT count active building array number, and probably should
+    - can't just throw 'building.length' because that's inclusive of upgrades, which do NOT count against the build limit... FILTER, let's goooo
+  ... building/upgrading completion should absolutely go in the township's chat history
+  !!! yeah, I think refining is hinky; should probably simplify it to just multiply, assuming we have sufficient resources, including fractional costs
+  !!! hm, doing a REFRESH on the client seems to reset everything... but just checking 
+    - why would that be? solve that, and you solve a lot of stupid
+    - ok! yup, REFRESHING the page causes a reset of everything and the next mgmtData check borks out
+    [x] also, refreshing makes the first click of the township not do anything?
+    [x] adding calcTownship call to fetching init management data seemed to help? ... vaguely possible we were calculating income off weirdo township data or something
+    - testing laptop closed for awhile, see if that hinkies it again
+  !!! top-of-township is still using .length so misrepresents available townfolk when multi-refining (and probably multi-building once implemented)
   
-  FINAL COMBAT CONCEPT CONSIDERATION - keep the DQ scaling as-is, or change to a 'flatter' style where stats don't fly up every level?
-    - welp, why change it to flatter? what's appealing about that?
-    - thinking of MBB DQT: having a Kacrackle doing a pretty predictable spread of damage, changing it more to "do the right tactics" versus "have the right stats"
-    - it helps smooth the curve of trivializing "low level" encounters and making "high level" encounters utterly unwinnable off the bat
-    - in a multiplayer environment with no clear-cut 'endgame' like this, it would allow newer players to hop in and potentially contribute relatively quickly
-    - ok, those are all pretty compelling reasons :P
-    - so then the next question is how to implement it in a way that doesn't feel super clunky
-    - additionally, I like the idea of bringing structs in to boost stats, so building the township is building your 'self' (character/persona), choose wisely for the town and for the chara
+  STRUCTS + STATS is back, baby! :P (or will be, when I implement it...)
+
+  STORMIN SKULL NOODLES @ BATTLE
+  - monster 'tier' and then sub-classifications, such as "Boss" or "Dragon" or "Toughie"/Elite that modify them stats (and rewards, potentially)
+  - monsters can have classes, as well... so, their TIER opens up one set of possibilities, and then their CLASS gives them specific abilities and other mods
+  - drop tables based on 'race,' tier, etc.
+
+  - probably rescale player stats to start at 10 across the board, with 10 being 'neutral', and then stats give 5% mods to various endeavors per point
+  - might add in additional stats for precision, evasion, etc.
+  - add in +/- stats for equipment... nothing provides perfect protection, everything is vulnerable to something, trade-offs are key!
+  - main query right now is how to balance scaling/leveling up with tiers being more 'rare' than levels?
+  - or tiers just dictate the spread of stats + seeds for monsters under the hood, and we get a sense of what tiers we can tackle as we go
+  - so instead of seed stat scaling, we'll have what was preivously derived stat scaling per level, and classes mod that
+  - and tiers will be roughly equal to level squared, so Tier 1 = level 1 stats, Tier 2 = level 4, Tier 3 = level 9, Tier 4 = level 16, etc. ... natural asymptote (reverse asymptotes? :P)
+    - noooot sold on this yet; may change it up to each tier = 5 levels, or a more manual approach that widens gaps later on
+  - so define the 'base' job as modding everything * 1, 
+  - atk acc def eva mag foc spr res dft cha (the last two are kind of wackadoo and don't fit the opposing-pairs theorem :P)
+  
+  SO! level ups. how do they work?
+  - one concept: independent player level absolute scaling and then class levels, which are mostly just unlockables that are... unlocked? ; equipped classes just mod base scaling
+  - another concept: all stats come from the class levels, so your stats flux a bunch based on which class(es) are equipped
+  - hybrid concept: 'best of each'
+
+  eh, I like independent levels gained mostly through mne and then spending mne of various sorts on gear and class upgrades
+  mne as a number, and bigMne as special mne? :P ... can define those as we go, in an object, so long as we're careful about nully neighbors
+
+
+
+  ALERTS/ALERT TYPES
+  - info: array, for stuff like 'building complete,' 'upgrade complete,' 'item received'... just little 'something somewhat noteworthy has happened, possibly offscreen'
+    - upper-right, log available probably at some point, rolls down side of page to about halfway probably, fades and then self-dismisses pretty quickly
+  - alert: basically anywhere we'd use window.alert(), but fancier and also helpfully self-dismissing
+    - middle bottom, animated to grab attention
+  - huzzah: you gained a level! ... and such
+    - upper left, flourish
+  - prompt (subtype: lockPrompt): the user needs to know something RIGHT NOW and acknowledge it; lockPrompt requires a specific input or it won't release
+    - lockPrompt can also be conditional, such as 'loading'... withholds exit button until conditions met
+    - big and in the center of the damn screen, so make sure it can't happen when being attacked or such, that'd be very rude :P
+
+
+
+  ONGOING MGMTDATA PULSES
+  - mgmtData then becomes persistent, and live updates more salient
+  - pulses should probably come from the player/client to be like 'hey is stuff done yet'; every 5 minutes? with exceptions when we 'know' something will be done sooner?
+
+
+
+  FLUX CAPACITY
+  - 25 max to begin with? +1/hr default, and then on specific events
+  - flux stored in township or in character/soul?
+  - townstat, sure! 24 + crossroad level base = fluxMax; but now we need to concern ourselves with passing down flux data
+  - flux accelerate: pass time with FLUX POWAH; can only do every so often, maximum efficiency using the ones that use less flux/cover less time
+    - basically, flux turns into 'time spent' rapidly; 
+    - flux used directly correlated to cooldown time; cooldown is less than flux spent, so having more influx (:P) can make it possible to always have flux to spend on this
+  - flux flourish: do a wave-to-boss battle on a tile to get... something!
+
+
+
+  MARCHIN' ALONG:
+  [x] add 'asOf: Date()' to mgmtData; that'll be the hook for pulsing tickin'
+  - now we kinda need to sort out 'passive receipt' and 'active receipt'... more actually, need a separate way that we set mgmtData when LOOKING (active: true) vs. background
+  - then, we need to ensure that we receive mgmtData pretty frequently, especially upon login (rather than only when viewing)
+  - after that, universal ongoing tickertocker with smart resets so we're not slamming the poor server (that probably wouldn't scale super well with many users)
+
+  - adding some sort of buying/selling to Zenithica would be great, so brainstorm that to some satisfying simplicity
+  - starting at 0 flux, but gaining flux for every struct built/upgraded? and then can do FLUX ACTION: fiiiighto
+
+
+  okidokie! mgmtData now has tileIncomes: {} and flux: 123, so we can represent tileIncomes accurately now in the client, in theory
+
+
+
+  BATTLE REQS
+  - a combat system that is resolvable
+
+
 
 */
