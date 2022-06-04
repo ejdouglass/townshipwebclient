@@ -153,6 +153,111 @@ export default function MainView() {
         return setMgmtObj({...mgmtObj, modal: {type: type}});
     }
 
+    function countCurrentWorkers(type) {
+        if (type != null) {
+            switch (type) {
+                case 'building': {
+                    let totalBuilders = 0;
+                    state.mgmtData.building.forEach(buildObj => totalBuilders += buildObj.workers);
+                    return totalBuilders;
+                }
+                case 'refining': {
+                    let totalRefiners = 0;
+                    state.mgmtData.refining.forEach(refineObj => totalRefiners += refineObj.workers);
+                    return totalRefiners;
+                }
+                case 'gathering': {
+                    return state.mgmtData.gatheringCoords.length;
+                }
+                default: return;
+            }
+        }
+        // simply returns the current number of busy workers in the township
+        let totalBuildingWorkers = 0;
+        let totalRefiningWorkers = 0;
+        state.mgmtData.building.forEach(buildObj => totalBuildingWorkers += buildObj.workers);
+        state.mgmtData.refining.forEach(refineObj => totalRefiningWorkers += refineObj.workers);
+        return state.mgmtData.gatheringCoords.length + totalBuildingWorkers + totalRefiningWorkers;      
+    }
+
+    function recallWorkers(which) {
+        if (which == null) which = 'all';
+        switch (which) {
+            case 'builders': {
+
+            }
+            case 'refiners': {
+                
+            }
+            case 'gatherers': {
+
+            }
+            case 'all':
+            default: {
+                let gatherArr = [...mgmtObj.arr];
+                gatherArr.forEach((tileObject, index) => {
+                    if (tileObject.gathering) gatherArr[index].gathering = false;
+                });                
+                let buildArrCopy = [...state.mgmtData.building];
+                buildArrCopy.forEach((buildObj, index) => {
+                    buildArrCopy[index].workers = 0;
+                });
+                let refineArrCopy = [...state.mgmtData.refining];
+                refineArrCopy.forEach((refineObj, index) => {
+                    refineArrCopy[index].workers = 0;
+                });
+                let newMgmtObj = {...mgmtObj, building: [...buildArrCopy], refining: [...refineArrCopy], gatherNow: 0, arr: [...gatherArr]};
+
+                setMgmtObj(newMgmtObj);
+        
+                return saveManagementSettings(newMgmtObj);
+            }
+        }
+
+    }
+
+    function adjustUpgrading(upgradeObj, amt) {
+        /*
+        
+            So, we may actually just want the INDEX, not the entire obj
+            
+            receive a +1 or -1, ADD that to the workers for the given index, then send updated info with saveManagementSettings(), ezpz?
+
+            ... nope, don't have the index, but since the project has the unique 'subject' of the struct's id (only one upgrade possible on a struct at once, so it'll be unique), we can use that
+
+        
+        */
+        // so, copy the upgrading array, pop through it to adjust the target with amt (assuming we have enough workers available), make sure we don't go to -1 somehow also, send to server
+        // a little inefficient, but should work just fine
+        if (countCurrentWorkers() + amt > state.mgmtData.townstats.actionSlots) return alert(`The township is already fully assigned; clear up some workers first.`);
+        let buildArrCopy = [...state.mgmtData.building];
+        buildArrCopy.forEach((projObj, index) => {
+            if (projObj.subject === upgradeObj.subject) {
+                buildArrCopy[index].workers += amt;
+                if (buildArrCopy[index].workers < 0) buildArrCopy[index].workers = 0;
+            } 
+        });
+
+        let newMgmtObj = {...mgmtObj, building: [...buildArrCopy]};
+        setMgmtObj(newMgmtObj);
+
+        return saveManagementSettings(newMgmtObj);
+    }
+
+    function adjustBuilding(buildIndex, amt) {
+        // doopty
+        if (countCurrentWorkers() + amt > state.mgmtData.townstats.actionSlots) return alert(`The township is already fully assigned; clear up some workers first.`);
+        let buildArrCopy = [...state.mgmtData.building];
+        buildArrCopy[buildIndex].workers += amt;
+        if (buildArrCopy[buildIndex].workers < 0) buildArrCopy[buildIndex].workers = 0;
+
+
+        let newMgmtObj = {...mgmtObj, building: [...buildArrCopy]};
+        setMgmtObj(newMgmtObj);
+
+        return saveManagementSettings(newMgmtObj);
+    }
+
     function adjustRefining(refineOptObj, amt) {
         /*
         
@@ -192,9 +297,8 @@ export default function MainView() {
         */
 
         if (amt > 0) {
-            const currentSlotsUsed = mgmtObj.gatherNow + mgmtObj.building.length + mgmtObj.refining.length + amt;
             const maxSlots = state.mgmtData.townstats.actionSlots;
-            if (currentSlotsUsed > maxSlots) return alert(`The township is already fully assigned; clear up some workers first.`);
+            if (countCurrentWorkers() + amt > maxSlots) return alert(`The township is already fully assigned; clear up some workers first.`);
         }
 
             
@@ -362,7 +466,6 @@ export default function MainView() {
         if (state.mgmtData.wealth < wealthCost) buildable = false;
         if (buildable === false) return alert(`You can't even begin to build that with your current means. Gather moar goodies!`);
         return sendSocketData({targetStruct: structPreviewObj}, 'begin_struct_build');
-
     }
 
     function handleTileAction(listItem) {
@@ -379,7 +482,7 @@ export default function MainView() {
                     let gatherChange = 0;
                     let newMgmtArr = [...mgmtObj.arr];
                     if (listItem === 'Gather') {
-                        const currentSlotsUsed = mgmtObj.gatherNow + mgmtObj.building.length + mgmtObj.refining.length;
+                        const currentSlotsUsed = countCurrentWorkers();
                         const maxSlots = state.mgmtData.townstats.actionSlots;
                         gatherChange = 1;
                         if (currentSlotsUsed >= maxSlots) return alert(`You've already stretched your township's personnel too thin. Clear up some actions first!`);
@@ -721,30 +824,31 @@ export default function MainView() {
             if (myWalkingGuy != null) clearInterval(myWalkingGuy);
         }
 
-        // rejiggered the useEffect to fire when we get a new map rather than a new mapCamera :P
+        
     }, [state?.player.playStack.wps]);
 
-    useEffect(() => {
-        if (state.player.playStack.overlay === 'township_management') {
-            console.log(`Let's manage it, somehow!`);
-        }
-    }, [state.player.playStack?.overlay])
+    // useEffect(() => {
+    //     if (state.player.playStack.overlay === 'township_management') {
+    //         console.log(`Let's manage it, somehow!`);
+    //     }
+    // }, [state.player.playStack?.overlay])
 
-    useEffect(() => {
-        //!MHRthreat
+    // useEffect(() => {
+    //     //!MHRthreat ... eh, we'll handle this separately a bit later, tying it to actual navigation
         
-        // cribbed rando with 1,100 :P
-        let threatRoll = Math.floor(Math.random() * (100 - 1 + 1)) + 1;
-        if (state?.threat > threatRoll) {
-            console.log(`Oh! A SLIME APPROACHES! Dun dun da dundundun...`);
-            return dispatch({type: actions.BEGIN_BATTLE});
-        }
+    //     // cribbed rando with 1,100 :P
+    //     let threatRoll = Math.floor(Math.random() * (100 - 1 + 1)) + 1;
+    //     if (state?.threat > threatRoll) {
+    //         console.log(`Oh! A SLIME APPROACHES! Dun dun da dundundun...`);
+    //         return dispatch({type: actions.BEGIN_BATTLE});
+    //     }
         
-    }, [state?.threat]);
+    // }, [state?.threat]);
 
     useEffect(() => {
         // !MHRmgmtmap
-        if (state?.mgmtData != null && state?.map != null && state?.player?.playStack?.mode === 'township_management') {
+        // if (state?.mgmtData != null && state?.map != null && state?.player?.playStack?.mode === 'township_management') {
+        if (state?.map != null && state?.mgmtData?.active) {
             let drawing = true;
 
             // hm, if we're adding 'drawing' to the whole thing then... drawing is always true :P
@@ -944,13 +1048,19 @@ export default function MainView() {
             <div style={{position: 'fixed', width: '100vw', top: '0', left: '0', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', zIndex: '8', backgroundColor: 'hsla(240,50%,10%,0.6)', display: (state?.mgmtData?.active) ? 'flex' : 'none'}}>
                 <div style={{width: '90vw', position: 'relative', height: '90vh', overflow: 'scroll', flexDirection: 'column', padding: '1.25rem', alignItems: 'center', backgroundColor: 'white'}}>
                     <button onClick={() => dispatch({type: actions.DISMISS_MANAGE_MODE})} style={{position: 'absolute', top: '0.25rem', left: '0.25rem'}}>X</button>
-                    <div>Your township, sire or siress!</div>
+                    <div>
+                        FLUX: {Math.floor(state.mgmtData.flux)} / {state?.mgmtData?.townstats?.fluxMax}
+                        <button onClick={() => sendSocketData({soul: state?.player?.name}, 'flux_action_accelerate')}>ACCELERATE</button>
+                    </div>
 
                     <div style={{width: '80%', border: '1px solid hsl(240,80%,80%)', borderRadius: '0.5rem', padding: '1rem', flexWrap: 'wrap', justifyContent: 'space-around'}}>
-                        <div style={{height: '100%', marginRight: '1rem', backgroundColor: '#0AF', color: 'white', padding: '1rem' }}>Available Townfolk: {state?.mgmtData?.townstats?.actionSlots - state?.mgmtData?.gatheringCoords?.length - state?.mgmtData?.refining?.length - state?.mgmtData?.building?.length}</div>
-                        <div style={{height: '100%', marginRight: '1rem', backgroundColor: '#0AF', color: 'white', padding: '1rem' }}>Gathering: {state?.mgmtData?.gatheringCoords?.length}</div>
-                        <div style={{height: '100%', marginRight: '1rem', backgroundColor: '#0AF', color: 'white', padding: '1rem' }}>Refining: {state?.mgmtData?.refining?.length}</div>
-                        <div style={{height: '100%', marginRight: '1rem', backgroundColor: '#0AF', color: 'white', padding: '1rem' }}>Building: {state?.mgmtData?.building?.length}</div>
+                        <div style={{height: '100%', marginRight: '1rem', backgroundColor: '#0AF', color: 'white', padding: '1rem', flexDirection: 'column'}}>
+                            <div style={{width: '100%'}}>Available Townfolk: {state.mgmtData.townstats.actionSlots - countCurrentWorkers()}</div>
+                            <button onClick={recallWorkers} style={{padding: '0.25rem'}}>Recall All Workers</button>
+                        </div>
+                        <div style={{height: '100%', marginRight: '1rem', backgroundColor: '#0AF', color: 'white', padding: '1rem' }}>Gathering: {countCurrentWorkers('gathering')}</div>
+                        <div style={{height: '100%', marginRight: '1rem', backgroundColor: '#0AF', color: 'white', padding: '1rem' }}>Refining: {countCurrentWorkers('refining')}</div>
+                        <div style={{height: '100%', marginRight: '1rem', backgroundColor: '#0AF', color: 'white', padding: '1rem' }}>Building: {countCurrentWorkers('building')}</div>
                     </div>
                     {/* <button onClick={saveManagementSettings}>SAVE MANAGEMENT SETTINGS</button> */}
 
@@ -1053,7 +1163,7 @@ export default function MainView() {
                             <div style={{flexDirection: 'column', width: '20%'}}>
                                 <div>[ Overview ]</div>
                                 <div>Storage: {Math.floor(mgmtObj.storageUsed)} / {mgmtObj.storageMax}</div>
-                                <div>Wealth: {Math.floor(state?.mgmtData?.wealth)}</div>
+                                <div>Wealth: {Math.floor(state?.mgmtData?.wealth)} (+ {state.mgmtData.townstats.commerce * 5}/hr)</div>
                                 <button onClick={() => openModal('refine')}>Refine!</button>
                                 {Object.keys(mgmtObj?.inventory).map((invKey, index) =>
                                     <div style={{display: mgmtObj.inventory[invKey] > 0 ? 'flex': 'none', width: '100%', border: '1px solid #AAA', padding: '0.5rem'}} key={index}>{invKey}: {Math.floor(mgmtObj.inventory[invKey])} {mgmtObj.incomes[invKey] > 0 ? `(+ ${mgmtObj.incomes[invKey]}/hr)` : ``}</div>
@@ -1080,26 +1190,42 @@ export default function MainView() {
                                 {(mgmtObj?.viewDetails?.type === 'myTownship' && state?.mgmtData != null) &&
                                     <div style={{flexDirection: 'column', width: '100%'}}>
                                         <div>{state?.mgmtData?.townstats?.buildCapacity - state?.mgmtData?.weight - state?.mgmtData?.building?.filter(buildObj => buildObj.type === 'build')?.length} builds left</div>
-                                        <button onClick={() => setMgmtObj({...mgmtObj, modal: {type: 'build'}})} style={{marginBottom: '0.5rem'}}>+ Build!</button>
+                                        <button onClick={() => setMgmtObj({...mgmtObj, modal: {type: 'build'}})} style={{border: '1px solid black', marginBottom: '0.5rem'}}>+ Build!</button>
                                         {Object.keys(state?.mgmtData?.structs).map((structKey, index) => 
                                             {
                                                 const listItem = state?.mgmtData?.structs[structKey];
                                                 const upgradeObj = state?.mgmtData?.building?.filter(buildObj => buildObj?.subject === listItem.id)[0];
                                                 const upgrading = upgradeObj != null ? true : false;
                                                 return (
-                                                    <button key={index} onClick={() => setMgmtObj({...mgmtObj, modal: {type: 'viewStruct', subject: listItem}})} style={{marginBottom: '0.5rem'}}>
-                                                        {listItem?.displayName} (Lv.{listItem?.level})
-                                                        {upgrading ? `UPGRADING (${Math.floor(upgradeObj.progress / upgradeObj.goal * 100)}%)` : ''}
-                                                    </button>
+                                                    <div key={index} style={{border: '1px solid black', flexDirection: 'column', marginBottom: '0.5rem'}}>
+                                                        <button onClick={() => setMgmtObj({...mgmtObj, modal: {type: 'viewStruct', subject: listItem}})}>{listItem?.displayName} (Lv.{listItem?.level})</button>
+                                                        <div style={{justifyContent: 'center', alignItems: 'center', textAlign: 'center'}}>{upgrading ? ` UPGRADING (${Math.floor(upgradeObj.progress / upgradeObj.goal * 100)}%)` : ''}</div>
+                                                        {upgrading &&
+                                                            <div style={{width: '100%', flexWrap: 'wrap', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', textAlign: 'center'}}>
+                                                                <button onClick={() => adjustUpgrading(upgradeObj, -1)} style={{width: '30px', padding: '0.5rem', height: '30px', borderRadius: '0.5rem', textAlign: 'center', justifyContent: 'center', alignItems: 'center'}}> - </button>
+                                                                <div style={{width: '30px', padding: '0.5rem', height: '30px', backgroundColor: 'white', color: 'black', borderRadius: '0.5rem', textAlign: 'center', justifyContent: 'center', alignItems: 'center'}}>{upgradeObj?.workers}</div>
+                                                                <button onClick={() => adjustUpgrading(upgradeObj, 1)} style={{width: '30px', padding: '0.5rem', height: '30px', borderRadius: '0.5rem', textAlign: 'center', justifyContent: 'center', alignItems: 'center'}}> + </button>
+                                                            </div>
+                                                        }
+                                                    </div>
                                                 )
                                             }
                                         )}
                                         
-                                        {state?.mgmtData?.building?.filter(projObj => projObj.type === 'build')?.map((buildProj, index) =>
-                                            <button style={{marginBottom: '0.5rem', flexDirection: 'column'}} key={index}>
-                                                <div>(BUILDING: {buildProj.subject[0].toUpperCase()}{buildProj.subject.substring(1)})</div>
-                                                <div>Progress: {Math.floor(buildProj.progress / buildProj.goal * 100)}%</div>
-                                            </button>
+                                        {state?.mgmtData?.building?.map((buildProj, index) =>
+                                            {
+                                                if (buildProj.type === 'build') return (
+                                                    <div style={{marginBottom: '0.5rem', flexDirection: 'column', border: '1px solid black'}} key={index}>
+                                                        <button>BUILDING: {buildProj.subject[0].toUpperCase()}{buildProj.subject.substring(1)} ({Math.floor(buildProj.progress / buildProj.goal * 100)}%)</button>
+                                                        <div style={{width: '100%', flexWrap: 'wrap', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', textAlign: 'center'}}>
+                                                            <button onClick={() => adjustBuilding(index, -1)} style={{width: '30px', padding: '0.5rem', height: '30px', borderRadius: '0.5rem', textAlign: 'center', justifyContent: 'center', alignItems: 'center'}}> - </button>
+                                                            <div style={{width: '30px', padding: '0.5rem', height: '30px', backgroundColor: 'white', color: 'black', borderRadius: '0.5rem', textAlign: 'center', justifyContent: 'center', alignItems: 'center'}}>{buildProj.workers}</div>
+                                                            <button onClick={() => adjustBuilding(index, 1)} style={{width: '30px', padding: '0.5rem', height: '30px', borderRadius: '0.5rem', textAlign: 'center', justifyContent: 'center', alignItems: 'center'}}> + </button>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            }
+
                                         )}
                                         
                                     </div>
@@ -1194,7 +1320,7 @@ export default function MainView() {
 
                                 
                                 I AM BUILD MENU. Or am I? Not really, I suppose. STRUCTS!
-
+                                ... ooh. Yeah, we're gonna have to trim all this; we went another way. :P
 
 
                             </div>
@@ -1264,6 +1390,7 @@ export default function MainView() {
                                     </div>
                                 )
                             })} */}
+                            {/* MHRinteract */}
                             {state?.locationData?.interactions?.map((interaction, index) => 
                                 <button style={{marginRight: '0.5rem'}} onClick={() => handleInteractionRequest(interaction)} key={index}>{interaction[0].toUpperCase()}{interaction.substring(1)}</button>
                             )}
@@ -1739,12 +1866,12 @@ const ChatEvent = ({ chatEventObject }) => {
 const CharacterCreationComponent = ({ dispatch, sendSocketData }) => {
     const [selectedClass, setSelectedClass] = useState('none');
     const [statSpread, setStatSpread] = useState({
-        strength: 12,
-        agility: 12,
-        vitality: 12,
-        willpower: 12,
-        intelligence: 12,
-        wisdom: 12
+        strength: 10,
+        agility: 10,
+        vitality: 10,
+        willpower: 10,
+        intelligence: 10,
+        wisdom: 10
     });
     const [creationPage, setCreationPage] = useState(0);
     const [icon, setIcon] = useState({
@@ -1765,13 +1892,6 @@ const CharacterCreationComponent = ({ dispatch, sendSocketData }) => {
 
     // let spendableStatPoints = Object.keys(statSpread).map(statKey => statSpread[statKey]).reduce((total, next) => total + next, 2);
 
-    const classDescriptions = {
-        'none': 'I am a...',
-        'fighter': 'I am a Fighter, rawr!',
-        'rogue': 'I am a Rogue, whoosh!',
-        'sympath': 'I am a Sympath, relax!',
-        'sorcerer': 'I am a Sorcerer, boom!'
-    }
 
     // Set up in an array for now, but once we have the value we can pass it directly when it's attached to player variables
     const fontOptions = ['Courier', 'Lucida Console', 'Monaco', 'Arial', 'Verdana', 'Tahoma', 'Trebuchet MS', 'Impact', 'Times New Roman', 'Didot', 'Georgia', 'Luminari']
@@ -1792,20 +1912,20 @@ const CharacterCreationComponent = ({ dispatch, sendSocketData }) => {
     const creationPages = [
         (<div style={{width: '100%', flexDirection: 'column', alignItems: 'center'}}>
             <div style={{width: '100%', marginBottom: '1rem', textAlign: 'center', justifyContent: 'center'}}>The voice in your head continues, "Focus on the feeling of your body, the flow of thoughts in your mind."<br/>"What do you sense about the state of your Self?"</div>
-            <div>Unspent Points: {Object.keys(statSpread).map(statKey => statSpread[statKey]).reduce((total, next) => total - next, 82)}</div>
+            <div>Unspent Points: {Object.keys(statSpread).map(statKey => statSpread[statKey]).reduce((total, next) => total - next, 70)}</div>
             <div style={{width: '100%', flexDirection: 'column'}}>
                 <div style={{width: '100%', justifyContent: 'center', alignItems: 'center', position: 'relative', top: '0.75rem'}}>STRENGTH: {statSpread.strength}</div>
-                <div style={{width: '100%', justifyContent: 'center', alignItems: 'center'}}><input type='range' min='4' max='20' value={statSpread.strength} onChange={e => adjustStat('strength', e.target.value)} /> </div>
+                <div style={{width: '100%', justifyContent: 'center', alignItems: 'center'}}><input type='range' min='5' max='15' value={statSpread.strength} onChange={e => adjustStat('strength', e.target.value)} /> </div>
                 <div style={{width: '100%', justifyContent: 'center', alignItems: 'center', position: 'relative', top: '0.75rem'}}>AGILITY: {statSpread.agility}</div>
-                <div style={{width: '100%', justifyContent: 'center', alignItems: 'center'}}><input type='range' min='4' max='20' value={statSpread.agility} onChange={e => adjustStat('agility', e.target.value)} /> </div>
+                <div style={{width: '100%', justifyContent: 'center', alignItems: 'center'}}><input type='range' min='5' max='15' value={statSpread.agility} onChange={e => adjustStat('agility', e.target.value)} /> </div>
                 <div style={{width: '100%', justifyContent: 'center', alignItems: 'center', position: 'relative', top: '0.75rem'}}>VITALITY: {statSpread.vitality}</div>
-                <div style={{width: '100%', justifyContent: 'center', alignItems: 'center'}}><input type='range' min='4' max='20' value={statSpread.vitality} onChange={e => adjustStat('vitality', e.target.value)} /> </div>
+                <div style={{width: '100%', justifyContent: 'center', alignItems: 'center'}}><input type='range' min='5' max='15' value={statSpread.vitality} onChange={e => adjustStat('vitality', e.target.value)} /> </div>
                 <div style={{width: '100%', justifyContent: 'center', alignItems: 'center', position: 'relative', top: '0.75rem'}}>WILLPOWER: {statSpread.willpower}</div>
-                <div style={{width: '100%', justifyContent: 'center', alignItems: 'center'}}><input type='range' min='4' max='20' value={statSpread.willpower} onChange={e => adjustStat('willpower', e.target.value)} /> </div>
+                <div style={{width: '100%', justifyContent: 'center', alignItems: 'center'}}><input type='range' min='5' max='15' value={statSpread.willpower} onChange={e => adjustStat('willpower', e.target.value)} /> </div>
                 <div style={{width: '100%', justifyContent: 'center', alignItems: 'center', position: 'relative', top: '0.75rem'}}>INTELLIGENCE: {statSpread.intelligence}</div>
-                <div style={{width: '100%', justifyContent: 'center', alignItems: 'center'}}><input type='range' min='4' max='20' value={statSpread.intelligence} onChange={e => adjustStat('intelligence', e.target.value)} /> </div>
+                <div style={{width: '100%', justifyContent: 'center', alignItems: 'center'}}><input type='range' min='5' max='15' value={statSpread.intelligence} onChange={e => adjustStat('intelligence', e.target.value)} /> </div>
                 <div style={{width: '100%', justifyContent: 'center', alignItems: 'center', position: 'relative', top: '0.75rem'}}>WISDOM: {statSpread.wisdom}</div>
-                <div style={{width: '100%', justifyContent: 'center', alignItems: 'center'}}><input type='range' min='4' max='20' value={statSpread.wisdom} onChange={e => adjustStat('wisdom', e.target.value)} /> </div>
+                <div style={{width: '100%', justifyContent: 'center', alignItems: 'center'}}><input type='range' min='5' max='15' value={statSpread.wisdom} onChange={e => adjustStat('wisdom', e.target.value)} /> </div>
                 
             </div>
             <button onClick={() => wrappingUp > 0 ? setCreationPage(3) : setCreationPage(creationPage + 1)}>That's me.</button>
@@ -1854,7 +1974,7 @@ const CharacterCreationComponent = ({ dispatch, sendSocketData }) => {
     function adjustStat(stat, value) {
         let statCopy = {...statSpread};
         statCopy[stat] = value;
-        if (statCopy[stat] > 20 || statCopy[stat] < 4 || Object.keys(statCopy).map(statKey => statCopy[statKey]).reduce((total, next) => total - next, 82) < 0) return;
+        if (statCopy[stat] > 15 || statCopy[stat] < 5 || Object.keys(statCopy).map(statKey => statCopy[statKey]).reduce((total, next) => total - next, 70) < 0) return;
         return setStatSpread({...statCopy});        
     }
 

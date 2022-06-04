@@ -202,7 +202,7 @@ const initialState = {
         structs: {},
         interactions: []
     },
-    mgmtData: null,
+    mgmtData: {flux: 0, active: false, townstats: {actionSlots: 0}, building: [], refining: [], gatheringCoords: []},
     alertString: undefined,
     currentTownship: undefined,
     serverResponse: {},

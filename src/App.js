@@ -124,12 +124,12 @@ so
 
 
 WHEN YA FIND A RED NEXUS... anyway
+... wow, I really just wrote that and left it for weeks with no context, so the above line means almost nothing to me for now. :P
 
 
 so you boot up the 'game' fresh. you log in. you may or may not be in a party. that needs to be sorted. 
 - you're in a party, neato, resume 'watching' the leader's chatventure
 - all chatventures are linked to a player's (unique) name and are the director of what's being seen, the 'playStack Source'
-- 
 
 PARTY LOGISTICS
 - what if someone logs out for too long? what happens to their character?
@@ -163,19 +163,8 @@ so when you decide to go adventuring with or without your built-up party, it's a
   - so is party part of playStack now?
   - we can have the party/chatventure have a WHATDOING with all relevant data for parsing
   - so now hanging out in a township... a 'universal chat nexus' more than a specific special thing? a tileChat?
-  play
 
-  ... having party in here makes combat concepts a LOT easier to manage, I think, especially if ALL playStacks (mobs included) have this format
-neoPlayStack: {
-  wps: world positioning system, by worldID
-  gps: coords within wps
-  at: if within a specific struct/town/township present at the current gps
-  party: {leader: true, suspended: false, slotRef: 0, comp: []}
-  event: {type: 'shop/battle/', id: (maybe?), ...}
-  nextAction: {} ... select your battle move, or if just chilling, can have it be a timeOut based on deftness to give a bit of 'delay' vs instant spam of whatever
-  overlay: null
-  menu: null // often used with events, but not exclusively... menu is an object by default, so can have a 'type' we can match to
-}
+
 
 [_] Finish TileArea basic logic, harmonized with above
   [_] finish defining starter style moves (at least strike and shock) so we can throw 'em on the muglins (and our player)
@@ -198,21 +187,6 @@ neoPlayStack: {
   [_] extra: talents, skills
 
 
-REACH
-[_] Add biome specificity to materials, most likely by adding biome data to allMaterials entries, 
-[_] Start in a Husk's chatventure? Hooded figure? ... name area is "who am I?" and enter info there to log in/create, actually 'close your eyes'
-  - should definitely whisk 'em up to Zenithica at that point to start the chatting process, though... immediate chance to interact!
-  - or start in Zenithica so we can have CHAT-FRONT SHOWCASE and then 'oh you woke up let's pop down'
-[_] online/offline hooks upon socket-ing
-
-
-ATM:
-x make client button to request a new map, wait for it, receive it
-x canvas time: DRAW the full map into a png file? or nah? figure out whether we want 'full map drawn, chunk out pieces' or just have the canvas draw relevant bits as we go
-x 'walk' around the map like a wacky hovering spirit
-x make some sprites, do it again!
-x add bounding logic (no more walking across the ocean under default parameters)
-x tighten up world gen a bit: mini-snakes, landmass distancing, lake logic, river/road support, basic river gen
 - add world gen extras: mobfactions support (for both team-level and faction-level PVE!), random encounters, points of interest, rare treasures of some sort
   - 'goody bag' that is generated on landmass init, proportionate to the number of total tiles for that landmass
   - what kind of goodies? (varies per tile type, generally)... BRAINSTORM!
@@ -465,67 +439,36 @@ o- let's focus on having first actions being SNAPPY & FAST... quick watchtower? 
   ... what's that lagtime after creating a character before I can do township management? ... is it the same lagtime as going out the gate?
 
   
-  !!! time calculations seem to be off if I leave for a day and come back, which isn't right... 12+ hours of refining and only 2 iron / 1 copper? that's super wrong
-    - let's break it down... when lastTick is SET (and saved), and how we check and calculate it
-    - the logic seems sound so far; maxTimesToRun MAY be the culprit?
-
-  [x] need to update view-building information so that UPGRADE! vanishes and gives us "we're upgrading now" instead, maybe with an ETA
-  [x] now that all township management sockets shoot back the same data, we need to start DRYing it all out
   ... huh, what's our client ref for tile incomes?? ... I don't think it has anything to do with what's on the BE, that's for sure, so we should fix that
-  ... oh, it would be neat if for our township we represent "SPACE" for a new building with an empty slot that pops up when we have unused buildCapacity, which would replace "build new thingy" partially
   !!! TOWNSHIP SAILING AWAAAAY ... freshwater, shallow ocean, deep ocean, SKY!
     - what precipitates a "driveable" township? <cue Epoch music for some reason>
   ... when doing a mgmt check on a township, it makes sense to check on building projects firstly, then calculate up until each next completed project (if applicable for that timeframe)
     - if a project gets completed, builder(s) can go back to gathering
   ... wares is now becoming just an array for structs; FANCY ware tech can be in a wareMods obj later on
-  ... hm, should we flag specs as being unique or not?... 'Iron Weaponsmithing' in a smithy seems like a one-and-done, while other specs are specific to the struct and are ok to duplicate
-  ... I like the idea of 'branching specializations' whereby a struct specializes SO HARD they exclude other spec options (and maybe become a new struct altogether)
   ... implementing 'township vibes' and edicts such as overclocking and easy breezy would be neat, modifying consumption rates, adding universal mods, etc.
   ??? how do we determine the cost of buying stuff at the shop? hmmm
-  ... ideally, if management window is left open, we have some way to 'refresh' ticks if it's just sitting eternally
-  ... hm, "one NPC per new struct" is an interesting idea; upgrades can lead to more NPC's; NPC => actionSlots, or nah?
   ... upon player creation, ZENITHICA echo? ... and while we're at it, adding more meaningful 'ambient messaging' in the Zen chat
   ... there are currently ZERO chatventures, which we should probably remedy at some point :P
-  ?!? apparently the useEffect in MainView for focusing on chat entry is being called conditionally? sometimes, maybe? I'unno, man
   ... it'd be best to offload world gen to the client or a worker-analogue; even the 'tutorial world'/starter world takes a few seconds to do, which would NOT scale well :P
   !!! whoops: hitting "enter"/submitting more than once while creating a new character is a little... wonky, so we should 'lock' that button as we segue into a new world
-  !!! possible issue: turning the computer on after a lengthy away period and booping mgmt will apparently give suuuuuper stale data? sometimes? always? uncertain
-  ... rejigger refining and building to allow multi-assignment
-  ... consider: multiple copies of the same 'refining' struct or recipe amplifying the speed it can be done? or the efficiency? hmmm
-  ... need a 'wealth sink' because I'm seeing that after a couple days it's easy to have a lot of that and not a lot of other stuff
-    - town perks, specs expensive, hasting projects, buying raw supplies in ZC or elsewhere, etc.
-  ... spend some time pondering out the tiers of mats for upgrading/refining/etc., which will help redefine building/upgrading costs
-    - standardize costs, then vary depending on struct
-  ... it'd be nice to see amps in township management somewhere (maybe just in the incomes/outflow/inventory sxn?)
-  ??? the loading when restarting server seems quite slow; are we being throttled, or is it the code?
-  ... hm, maybe when we're in management mode, we have an every-X-minutes timer that is scrapped when we leave but that pulses checks for us?
-    - oooor we could infer completion times and have an every-second timer that's FE-only and ticks away as we go
-    - or both :P
-  !!! still not getting the proper income after returning to computer, hm... no chance of sending stale data messing it up, is there?
-  ... hm, having 'idle' workers just 'work' the township tile is a fine idea
-    - though, because it's "free" and we already have the idea that a tile is 'fully gathered from' with just 1 'worker,' maybe impose a penalty, 0.5?
-  ... also starting to like the idea of 'specializations' JUST being the level 5/10/15/etc. choices where we get a new struct (current concept), clears up a lot of little concerns
-  !!! whoops, the "Gather/Stop Gathering" toggle works, but the display doesn't adjust on the fly anymore
-  !!! another whoops!... now that we're gearing up for WORKERS, the array length for building and refining isn't equal to actionSlots taken anymore
-    - so, need to fix that in calcTownship (doing that currently), as well as in 'available slots' checks for building/refining in client & related sockets
+  ... so booping gathering DOES work in toggling, but does NOT display the change to 'Gather'/'Stop Gathering' string
   ... make sure all the upgrade-y structs do something of use :P ... right now, the tradehall does butt all and isn't worth upgrading in the least
   ... related, but we need to make sure that we list out what we get by upgrading! ... might even want to add an 'upgradeDescription' for JUST describing the upgrade
     - also related to related, we need to see what each struct actually functionally DOES for our township on detailed view :P
-  ... gameplay is getting fun (for me), from a mgmt standpoint, but it's LOTS of waiting right now... so, gotta give ACTIVE stuff for us to do (together!)
   ... hm, loading is SUPER fast when there isn't any data... so what part of loading is taking aaaages after a few players/dates are there?
-  !!! 'X builds left' does NOT count active building array number, and probably should
-    - can't just throw 'building.length' because that's inclusive of upgrades, which do NOT count against the build limit... FILTER, let's goooo
-  ... building/upgrading completion should absolutely go in the township's chat history
-  !!! yeah, I think refining is hinky; should probably simplify it to just multiply, assuming we have sufficient resources, including fractional costs
-  !!! hm, doing a REFRESH on the client seems to reset everything... but just checking 
-    - why would that be? solve that, and you solve a lot of stupid
-    - ok! yup, REFRESHING the page causes a reset of everything and the next mgmtData check borks out
-    [x] also, refreshing makes the first click of the township not do anything?
-    [x] adding calcTownship call to fetching init management data seemed to help? ... vaguely possible we were calculating income off weirdo township data or something
-    - testing laptop closed for awhile, see if that hinkies it again
-  !!! top-of-township is still using .length so misrepresents available townfolk when multi-refining (and probably multi-building once implemented)
+  ... yeah, 500 starter storage goes away after one overnight, it's too little, EXPAND ITS DEFAULTNESS
+  !!! logging out crashes the app now :P ... sometimes. function.keys, undefined, null, etc.
+  !!! buggy: accelerating completion of crossroad to level 3 took 5 flux, dropping us to 0, but didn't then give us the 5 we get for the ugprade
+  ... hm, when lotta buildings, scrolls WHOLE page, not just the structs, losing the "X"... awkward behavior
+  ... currently there's zero reason to upgrade the town wall... should probably see to that at some point
+  ... building and upgrading should echo to the tippy-right and to the town chat
+  ??? do mountains pop from greenhills? 'cuz they should :P
+  ... hm, having enough stat points at start for TWO +5 stats and no negatives seems a bit much if we're doing 10% hops over/under 10
+
+  
   
   STRUCTS + STATS is back, baby! :P (or will be, when I implement it...)
+    ... but since stats are now designed to be MUCH more impactful, exercise restraint... on 5th-level capping, perhaps
 
   STORMIN SKULL NOODLES @ BATTLE
   - monster 'tier' and then sub-classifications, such as "Boss" or "Dragon" or "Toughie"/Elite that modify them stats (and rewards, potentially)
@@ -540,15 +483,12 @@ o- let's focus on having first actions being SNAPPY & FAST... quick watchtower? 
   - so instead of seed stat scaling, we'll have what was preivously derived stat scaling per level, and classes mod that
   - and tiers will be roughly equal to level squared, so Tier 1 = level 1 stats, Tier 2 = level 4, Tier 3 = level 9, Tier 4 = level 16, etc. ... natural asymptote (reverse asymptotes? :P)
     - noooot sold on this yet; may change it up to each tier = 5 levels, or a more manual approach that widens gaps later on
+    - circling back, I like 5 level increments a lot better (where tier 0 is actually level 1, probably, not level 0 :P)
   - so define the 'base' job as modding everything * 1, 
   - atk acc def eva mag foc spr res dft cha (the last two are kind of wackadoo and don't fit the opposing-pairs theorem :P)
   
   SO! level ups. how do they work?
-  - one concept: independent player level absolute scaling and then class levels, which are mostly just unlockables that are... unlocked? ; equipped classes just mod base scaling
-  - another concept: all stats come from the class levels, so your stats flux a bunch based on which class(es) are equipped
-  - hybrid concept: 'best of each'
-
-  eh, I like independent levels gained mostly through mne and then spending mne of various sorts on gear and class upgrades
+  - independent levels from mne primarily (other reqs later); class levels/skill 'bought' from trainers with various forms of mne, 
   mne as a number, and bigMne as special mne? :P ... can define those as we go, in an object, so long as we're careful about nully neighbors
 
 
@@ -573,13 +513,14 @@ o- let's focus on having first actions being SNAPPY & FAST... quick watchtower? 
 
 
   FLUX CAPACITY
-  - 25 max to begin with? +1/hr default, and then on specific events
-  - flux stored in township or in character/soul?
-  - townstat, sure! 24 + crossroad level base = fluxMax; but now we need to concern ourselves with passing down flux data
+  [x] 24 + crossroad.level; +1/hr by default, though we need to add that 'income' real quick... DONE
   - flux accelerate: pass time with FLUX POWAH; can only do every so often, maximum efficiency using the ones that use less flux/cover less time
     - basically, flux turns into 'time spent' rapidly; 
     - flux used directly correlated to cooldown time; cooldown is less than flux spent, so having more influx (:P) can make it possible to always have flux to spend on this
-  - flux flourish: do a wave-to-boss battle on a tile to get... something!
+    - which is to say, if ACCELERATE costs 10 flux, it'll recharge much faster than 10 hours
+    - have to add FLUX ACTION COOLDOWN logic, but for now, WILD FLUX ACTION is non-granular and simply results in flux / 5 hours passing
+  - flux flourish: do a wave-to-boss battle on a tile to get... something! OOH, supplies, items, mne, and TILE CHANGE ACCELERATION (as opposed to accelerate, which does only own projects)
+  - assuming ACCELERATE works, it does put us more on the hook to have 'idle workers' scoot immediately back to township center when builds are done
 
 
 
@@ -599,7 +540,53 @@ o- let's focus on having first actions being SNAPPY & FAST... quick watchtower? 
 
   BATTLE REQS
   - a combat system that is resolvable
+  - HEALTH: 100 default; MP: ??? default
+  - atk/mag/def/res = ((statCalc (~10ish) + level) * classMod) + equipment
 
+  !!! whoops, refreshing while in ZENITHICA removes its interactions... no more nexus, for some reason... locationData.interactions
 
+  WHAT IF...
+  - add each thingy having a [ + ] [ - ] [ net ] [ % ] display
+
+  I think we can do 'staggered calcTownIncome for builds' by doing an early check to see if build times conclude before the length of tick -> 'now'
+    - if so, separate code that resolves it and re-calls calcTownIncome with hoursToPass adjusted properly
+    - may need to put building resolution earlier in the function, and/or have this separate section call calcTownship (to put idle workers back to income generation)
+  
+  ... rather than forcing a BE ping, we couuuuuld theoretically just keep calculating our income on the FE and tick up there
+    - just have to make sure the client and server have exactly the same assumptions/ticks, and we notify the BE whenever something 'exciting' happens
+
+  !!! whoops! we only check if township is capped to disallow more refining; if we have any workers available, it seems we can assign indefinitely :P
+  
+  
+  [?] encounters
+    - we can rejigger world vars to alter min threshold 'threat' to get into battle
+    - need to know what sort of encounters to 'create' under different circumstances: how many monsters, what levels, etc.
+    - transition into and out of battle (shouldn't be TOO hard, just need the right playStack/chatventure hookage)
+    - world-based 'encounter table' that uses the data from the tile to generate the encounter
+    - hm, it's starting to make more sense to have 'continent encounter data' so that a tile 'knows' which continent it is a part of
+      - later on we can get REALLY fancy and define them as zones... so, early on, each continent is a 'zone,' but later on continents can have multiple zones
+    - anyway, each world has a default 'tier' off which encounters scale; each individual tile will have a single char in its string that modifies encounter tier
+      - be mindful that a single level 10 monster (tier 3) is nowhere near as threatening as, y'know, four or five of same :P
+      - so it's important to be able to generate an expectation of 'difficulty' of battle, as well, not just 'tier'/level
+    - a second string that modifies encounter group size?
+    - we can also have the 'zone stats' give a base encounter 'size,' 
+    - worlds can also be 'more dangerous at night, bigger size encounters vs monsters at night,' and so on... well, once we have a day/night cycle
+
+  [?] world map menu (use items, etc.)
+
+  [?] battle
+  [?] trading with Zenithica
+    - for now, average BUY of base materials = 5 wealth/1 mat
+    - average SELL of base materials = 2 wealth/1 mat
+    - rarest materials/unique materials appear sporadically?
+    - I like the idea of fluctuating pricing based on invisible factors, allowing some 'market trading,' but that's prooobably for later
+  [?] recruiting
+  [?] equipment (stats, wares, buy/sell)
+
+  [?] how are we gonna handle tier-ing for monsters via world map?
+  - MAP PUSH: if map changes substantially, everyone 'in' that map needs to know it, ideally; how to 'subscribe' to maps? just make their own sockets?
+  - can be tied to tile-string variable vs world 'tier' default
+  - 
+  
 
 */
